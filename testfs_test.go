@@ -92,7 +92,7 @@ func TestLookupPath(t *testing.T) {
 	fs.dirTree.children["tmp"] = tmp
 	fs.dirTree.children["tmp"].children["test"] = test
 
-	i, err := fs.lookupPath("/")
+	i, err := fs.lookupPath(nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -100,7 +100,7 @@ func TestLookupPath(t *testing.T) {
 		t.Error("Wrong root inode number")
 	}
 
-	i, err = fs.lookupPath("/tmp")
+	i, err = fs.lookupPath([]string{"tmp"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -108,15 +108,7 @@ func TestLookupPath(t *testing.T) {
 		t.Error("Wrong inode number")
 	}
 
-	i, err = fs.lookupPath("tmp")
-	if err != nil {
-		t.Error(err)
-	}
-	if i != 2 {
-		t.Error("Wrong inode number")
-	}
-
-	i, err = fs.lookupPath("/tmp/test")
+	i, err = fs.lookupPath([]string{"tmp", "test"})
 	if err != nil {
 		t.Error(err)
 	}

@@ -85,11 +85,7 @@ func (t *TestFS) parsePath(path string) ([]string, error) {
 	return terms[:len(terms)], nil
 }
 
-func (t *TestFS) lookupPath(path string) (inum, error) {
-	terms, err := t.parsePath(path)
-	if err != nil {
-		return 0, err
-	}
+func (t *TestFS) lookupPath(terms []string) (inum, error) {
 
 	if terms == nil {
 		return root, nil
@@ -112,4 +108,8 @@ func (t *TestFS) lookupPath(path string) (inum, error) {
 	}
 
 	return 0, os.ErrNotExist
+}
+
+func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
+	return nil
 }
