@@ -6,6 +6,9 @@ import (
 	"sync"
 )
 
+const sep = "/"
+const root = 1
+
 // inum is the inode number type
 type inum uint64
 
@@ -35,32 +38,64 @@ type TestFS struct {
 
 func NewTestFS() *TestFS {
 	t := new(TestFS)
-	t.dirTree.inode = 1
+	t.dirTree.inode = root
 	t.dirTree.children = make(map[string]dentry)
 	t.cwd = "/"
 	return t
 }
 
-func (t *TestFS) lookupPath(path string) (inum, error) {
-	// Root
-	if path == "/" {
-		return 1, nil
+func (t *TestFS) parsePath(path string) ([]string, error) {
+	if path == sep {
+		return nil, nil
 	}
 
 	// Ignore trailing slashes
-	if path[len(path)-1:] == "/" {
+	if path[len(path)-1:] == sep {
 		path = path[:len(path)-1]
 	}
 
 	// If path does not start with /, prepend CWD.
-	if path[0:1] != "/" {
-		path = t.cwd + path
+	if path[0:1] != sep {
+		path = t.cwd + sep + path
+	}
+
+	elems := strings.Split(path[1:], sep)
+	terms := make([]string, 0, len(elems))
+
+	for i := range elems {
+
+		switch elems[i] {
+
+		case "", ".":
+			continue
+
+		case "..":
+			if len(terms) > 0 {
+				terms = terms[:len(terms)-1]
+			} else {
+				return nil, os.ErrNotExist
+			}
+
+		default:
+			terms = append(terms, elems[i])
+
+		}
+	}
+
+	return terms[:len(terms)], nil
+}
+
+func (t *TestFS) lookupPath(path string) (inum, error) {
+	terms, err := t.parsePath(path)
+	if err != nil {
+		return 0, err
+	}
+
+	if terms == nil {
+		return root, nil
 	}
 
 	loc := t.dirTree
-
-	// Skip the first /
-	terms := strings.Split(path[1:], "/")
 
 	for i := range terms {
 
