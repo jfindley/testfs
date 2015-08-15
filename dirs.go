@@ -75,3 +75,20 @@ func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
 
 	return nil
 }
+
+func (t *TestFS) Chdir(dir string) error {
+	terms, err := t.parsePath(dir)
+	if err != nil {
+		return err
+	}
+	_, err = t.lookupPath(terms)
+	if err != nil {
+		return err
+	}
+	if dir[0:1] == "/" {
+		t.cwd = dir
+	} else {
+		t.cwd = t.cwd + "/" + dir
+	}
+	return nil
+}

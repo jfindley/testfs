@@ -74,3 +74,36 @@ func TestMkdirAll(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestChdir(t *testing.T) {
+	fs := NewTestFS()
+
+	err := fs.Chdir("/tmp")
+	if !os.IsNotExist(err) {
+		t.Error("Bad error code")
+	}
+	if fs.cwd != "/" {
+		t.Error("Wrong working dir")
+	}
+
+	err = fs.MkdirAll("/tmp/test", os.FileMode(0777))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Chdir("/tmp")
+	if err != nil {
+		t.Error(err)
+	}
+	if fs.cwd != "/tmp" {
+		t.Error("Wrong working dir")
+	}
+
+	err = fs.Chdir("test")
+	if err != nil {
+		t.Error(err)
+	}
+	if fs.cwd != "/tmp/test" {
+		t.Error("Wrong working dir")
+	}
+}
