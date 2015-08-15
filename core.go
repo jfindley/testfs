@@ -26,7 +26,7 @@ type inode struct {
 	attrs
 	linkCount  uint16
 	linkTarget inum
-	sync.Mutex
+	mu         *sync.Mutex
 }
 
 func newInode(uid, gid uint16, mode os.FileMode) inode {
@@ -35,6 +35,7 @@ func newInode(uid, gid uint16, mode os.FileMode) inode {
 	i.uid = uid
 	i.gid = gid
 	i.mode = mode
+	i.mu = new(sync.Mutex)
 
 	return i
 }
@@ -43,14 +44,14 @@ func newInode(uid, gid uint16, mode os.FileMode) inode {
 type dentry struct {
 	inode    inum
 	children map[string]dentry
-	sync.Mutex
+	mu       sync.Mutex
 }
 
-func newDentry(i inum) *dentry {
+func newDentry(i inum) dentry {
 	var d dentry
 	d.children = make(map[string]dentry)
 	d.inode = i
-	return &d
+	return d
 }
 
 func (d *dentry) lookup(name string) *dentry {
@@ -206,30 +207,20 @@ func (t *TestFS) newInum() inum {
 	return i
 }
 
-func (t *TestFS) find(path string) (inode, error) {
-	var (
-		i  inode
-		ok bool
-	)
+func (t *TestFS) find(path string) (inum, error) {
 
 	terms, err := t.parsePath(path)
 	if err != nil {
-		return i, err
+		return 0, err
 	}
 
 	d, err := t.lookupPath(terms)
 	if err != nil {
-		return i, err
+		return 0, err
 	}
 
 	if !t.checkPerm(d.inode, 'r') {
-		return i, os.ErrNotExist
+		return 0, os.ErrNotExist
 	}
-
-	// Handle possible race rather than locking t
-	i, ok = t.files[d.inode]
-	if !ok {
-		return inode{}, os.ErrNotExist
-	}
-	return i, nil
+	return d.inode, nil
 }

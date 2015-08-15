@@ -230,12 +230,12 @@ func TestFind(t *testing.T) {
 		t.Error(err)
 	}
 
-	f, err := fs.find("/tmp/test")
+	in, err := fs.find("/tmp/test")
 	if err != nil {
 		t.Error(err)
 	}
 
-	if f.mode != os.FileMode(0755)|os.ModeDir {
+	if fs.files[in].mode != os.FileMode(0755)|os.ModeDir {
 		t.Error("Bad inode permissions")
 	}
 }

@@ -23,8 +23,8 @@ func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
 		return err
 	}
 
-	d.Lock()
-	defer d.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	// Fail if dir exists
 	if d.lookup(terms[len(terms)-1]) != nil {
@@ -33,7 +33,7 @@ func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
 
 	// Create the directory
 	i := t.newInum()
-	d.children[terms[len(terms)-1]] = *newDentry(i)
+	d.children[terms[len(terms)-1]] = newDentry(i)
 	t.files[i] = newInode(Uid, Gid, perm)
 
 	return nil
@@ -62,7 +62,7 @@ func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
 			// Create the directory
 			newInum := t.newInum()
 
-			dir.children[terms[i]] = *newDentry(newInum)
+			dir.children[terms[i]] = newDentry(newInum)
 			dir = dir.children[terms[i]]
 			t.files[newInum] = newInode(Uid, Gid, perm)
 
