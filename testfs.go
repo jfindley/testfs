@@ -7,7 +7,16 @@ import (
 )
 
 const sep = "/"
-const root = 1
+const inodeAllocSize = 128
+
+var (
+	Uid, Gid uint16
+)
+
+func init() {
+	Uid = uint16(os.Getuid())
+	Gid = uint16(os.Getgid())
+}
 
 // inum is the inode number type
 type inum uint64
@@ -20,11 +29,35 @@ type inode struct {
 	sync.Mutex
 }
 
+func newInode(uid, gid uint16, mode os.FileMode) *inode {
+	var i inode
+	i.xattrs = make(map[string]string)
+	i.uid = uid
+	i.gid = gid
+	i.mode = mode
+
+	return &i
+}
+
 // dentry is loosely based on a POSIX dentry.  It maps FS names to inodes.
 type dentry struct {
 	inode    inum
 	children map[string]dentry
 	sync.Mutex
+}
+
+func newDentry(i inum) *dentry {
+	var d dentry
+	d.children = make(map[string]dentry)
+	d.inode = i
+	return &d
+}
+
+func (d *dentry) lookup(name string) *dentry {
+	if this, ok := d.children[name]; ok {
+		return &this
+	}
+	return nil
 }
 
 // TestFS implements an in-memory filesystem.  We use maps rather than
@@ -34,12 +67,17 @@ type TestFS struct {
 	files   map[inum]inode
 	data    map[inum][]byte
 	cwd     string
+	maxInum inum
+	sync.Mutex
 }
 
 func NewTestFS() *TestFS {
 	t := new(TestFS)
-	t.dirTree.inode = root
+	t.dirTree.inode = 1
+	t.maxInum = 1
 	t.dirTree.children = make(map[string]dentry)
+	t.files = make(map[inum]inode)
+	t.data = make(map[inum][]byte)
 	t.cwd = "/"
 	return t
 }
@@ -85,31 +123,144 @@ func (t *TestFS) parsePath(path string) ([]string, error) {
 	return terms[:len(terms)], nil
 }
 
-func (t *TestFS) lookupPath(terms []string) (inum, error) {
+func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 
-	if terms == nil {
-		return root, nil
+	if terms == nil || len(terms) == 0 {
+		return &t.dirTree, nil
 	}
 
-	loc := t.dirTree
+	loc := &t.dirTree
 
 	for i := range terms {
 
-		if _, ok := loc.children[terms[i]]; ok {
+		if this := loc.lookup(terms[i]); this != nil {
 
-			// Final term
 			if i == len(terms)-1 {
-				return loc.children[terms[i]].inode, nil
+				return this, nil
 			}
 
-			loc = loc.children[terms[i]]
+			loc = this
+
 		}
 
 	}
 
-	return 0, os.ErrNotExist
+	return nil, os.ErrNotExist
+}
+
+func checkPerm(i *inode, perms ...rune) bool {
+	var offset uint
+
+	switch {
+	case i.uid == Uid:
+		offset = 0
+	case i.gid == Gid:
+		offset = 3
+	default:
+		offset = 6
+	}
+
+	for _, p := range perms {
+
+		switch p {
+
+		case 'r':
+			if i.mode&(1<<uint(9-1-offset)) == 0 {
+				return false
+			}
+
+		case 'w':
+			if i.mode&(1<<uint(9-1-offset-1)) == 0 {
+				return false
+			}
+
+		case 'x':
+			if i.mode&(1<<uint(9-1-offset-2)) == 0 {
+				return false
+			}
+
+		}
+
+	}
+	return true
+}
+
+func (t *TestFS) newInum() inum {
+	t.Lock()
+	t.maxInum++
+	i := t.maxInum
+	t.Unlock()
+	return i
 }
 
 func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
+	// Ensure the dir mode is set
+	perm |= os.ModeDir
+
+	terms, err := t.parsePath(name)
+	if err != nil {
+		return err
+	}
+
+	// Don't try to create root
+	if terms == nil {
+		return nil
+	}
+
+	d, err := t.lookupPath(terms[:len(terms)-1])
+	if err != nil {
+		return err
+	}
+
+	d.Lock()
+	defer d.Unlock()
+
+	// Fail if dir exists
+	if d.lookup(terms[len(terms)-1]) != nil {
+		return os.ErrExist
+	}
+
+	// Create the directory
+	i := t.newInum()
+	d.children[terms[len(terms)-1]] = *newDentry(i)
+	t.files[i] = *newInode(Uid, Gid, perm)
+
+	return nil
+}
+
+func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
+	// Ensure the dir mode is set
+	perm |= os.ModeDir
+
+	terms, err := t.parsePath(name)
+	if err != nil {
+		return err
+	}
+
+	// Don't try to create root
+	if terms == nil {
+		return nil
+	}
+
+	dir := t.dirTree
+
+	for i := range terms {
+		d, err := t.lookupPath(terms[:i+1])
+		if os.IsNotExist(err) {
+
+			// Create the directory
+			newInum := t.newInum()
+
+			dir.children[terms[i]] = *newDentry(newInum)
+			dir = dir.children[terms[i]]
+			t.files[newInum] = *newInode(Uid, Gid, perm)
+
+		} else if err != nil {
+			return err
+		} else {
+			dir = *d
+		}
+	}
+
 	return nil
 }

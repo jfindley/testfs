@@ -9,7 +9,7 @@ type attrs struct {
 	uid    uint16
 	gid    uint16
 	mode   os.FileMode
-	xattrs *map[string]string
+	xattrs map[string]string
 }
 
 func (a attrs) chmod(mode os.FileMode) {
