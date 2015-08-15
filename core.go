@@ -29,14 +29,14 @@ type inode struct {
 	sync.Mutex
 }
 
-func newInode(uid, gid uint16, mode os.FileMode) *inode {
+func newInode(uid, gid uint16, mode os.FileMode) inode {
 	var i inode
 	i.xattrs = make(map[string]string)
 	i.uid = uid
 	i.gid = gid
 	i.mode = mode
 
-	return &i
+	return i
 }
 
 // dentry is loosely based on a POSIX dentry.  It maps FS names to inodes.
@@ -204,4 +204,32 @@ func (t *TestFS) newInum() inum {
 	i := t.maxInum
 	t.Unlock()
 	return i
+}
+
+func (t *TestFS) find(path string) (inode, error) {
+	var (
+		i  inode
+		ok bool
+	)
+
+	terms, err := t.parsePath(path)
+	if err != nil {
+		return i, err
+	}
+
+	d, err := t.lookupPath(terms)
+	if err != nil {
+		return i, err
+	}
+
+	if !t.checkPerm(d.inode, 'r') {
+		return i, os.ErrNotExist
+	}
+
+	// Handle possible race rather than locking t
+	i, ok = t.files[d.inode]
+	if !ok {
+		return inode{}, os.ErrNotExist
+	}
+	return i, nil
 }
