@@ -139,6 +139,11 @@ func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 				return this, nil
 			}
 
+			// Make sure we can read the new subdir
+			if !t.checkPerm(this.inode, 'r', 'x') {
+				return nil, os.ErrPermission
+			}
+
 			loc = this
 
 		}
@@ -148,8 +153,16 @@ func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 	return nil, os.ErrNotExist
 }
 
-func checkPerm(i *inode, perms ...rune) bool {
-	var offset uint
+func (t *TestFS) checkPerm(in inum, perms ...rune) bool {
+	var (
+		i      inode
+		offset uint
+		ok     bool
+	)
+
+	if i, ok = t.files[in]; !ok {
+		return false
+	}
 
 	switch {
 	case i.uid == Uid:

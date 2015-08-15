@@ -107,6 +107,8 @@ func TestLookupPath(t *testing.T) {
 
 	fs.dirTree.children["tmp"] = tmp
 	fs.dirTree.children["tmp"].children["test"] = test
+	fs.files[2] = *newInode(Uid, Gid, os.FileMode(0777))
+	fs.files[3] = *newInode(Uid, Gid, os.FileMode(0777))
 
 	i, err := fs.lookupPath(nil)
 	if err != nil {
@@ -157,60 +159,62 @@ func BenchmarkLookupPath(b *testing.B) {
 }
 
 func TestCheckPerm(t *testing.T) {
-	user := newInode(Uid, 666, os.FileMode(0000))
-	group := newInode(666, Gid, os.FileMode(0000))
-	all := newInode(666, 666, os.FileMode(0000))
+	fs := NewTestFS()
+
+	fs.files[1] = *newInode(Uid, 666, os.FileMode(0000))
+	fs.files[2] = *newInode(666, Gid, os.FileMode(0000))
+	fs.files[3] = *newInode(666, 666, os.FileMode(0000))
+	fs.files[4] = *newInode(Uid, 666, os.FileMode(0700))
+	fs.files[5] = *newInode(666, Gid, os.FileMode(0070))
+	fs.files[6] = *newInode(666, 666, os.FileMode(0007))
 
 	// Check failures
-	if checkPerm(user, 'r') {
+	if fs.checkPerm(1, 'r') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(user, 'w') {
+	if fs.checkPerm(1, 'w') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(user, 'x') {
+	if fs.checkPerm(1, 'x') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(group, 'r') {
+	if fs.checkPerm(2, 'r') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(group, 'w') {
+	if fs.checkPerm(2, 'w') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(group, 'x') {
+	if fs.checkPerm(2, 'x') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(all, 'r') {
+	if fs.checkPerm(3, 'r') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(all, 'w') {
+	if fs.checkPerm(3, 'w') {
 		t.Error("Permission check failed")
 	}
-	if checkPerm(all, 'x') {
+	if fs.checkPerm(3, 'x') {
 		t.Error("Permission check failed")
 	}
-
-	user.mode = os.FileMode(0700)
-	group.mode = os.FileMode(0070)
-	all.mode = os.FileMode(0007)
 
 	// Check success
-	if !checkPerm(user, 'r', 'w', 'x') {
+	if !fs.checkPerm(4, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if !checkPerm(group, 'r', 'w', 'x') {
+	if !fs.checkPerm(5, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if !checkPerm(all, 'r', 'w', 'x') {
+	if !fs.checkPerm(6, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
 
 }
 
 func BenchmarkCheckPerm(b *testing.B) {
-	i := newInode(Uid, Gid, os.FileMode(0644))
+	fs := NewTestFS()
+	fs.files[1] = *newInode(Uid, Gid, os.FileMode(0644))
 	for n := 0; n < b.N; n++ {
-		if !checkPerm(i, 'r', 'w') {
+		if !fs.checkPerm(1, 'r', 'w') {
 			b.Error("Permission check failed")
 		}
 	}
