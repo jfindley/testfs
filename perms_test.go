@@ -42,3 +42,20 @@ func TestChmod(t *testing.T) {
 	}
 
 }
+
+func TestChown(t *testing.T) {
+	fs := NewTestFS()
+	in := fs.newInum()
+	fs.dirTree.children["test"] = newDentry(in)
+	fs.files[in] = newInode(Uid, Gid, os.FileMode(0755))
+
+	err := fs.Chown("/test", 666, 777)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if fs.files[in].uid != 666 || fs.files[in].gid != 777 {
+		t.Error("Bad ownership")
+	}
+
+}

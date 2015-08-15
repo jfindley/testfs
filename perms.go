@@ -31,5 +31,19 @@ func (t *TestFS) Chmod(name string, mode os.FileMode) error {
 }
 
 func (t *TestFS) Chown(name string, uid, gid int) error {
+	in, err := t.find(name)
+	if err != nil {
+		return err
+	}
+
+	t.files[in].mu.Lock()
+	defer t.files[in].mu.Unlock()
+
+	this := t.files[in]
+	this.uid = uint16(uid)
+	this.gid = uint16(gid)
+
+	t.files[in] = this
+
 	return nil
 }
