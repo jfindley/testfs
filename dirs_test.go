@@ -22,20 +22,7 @@ func TestMkdir(t *testing.T) {
 	}
 }
 
-func BenchmarkMkdirDeep(b *testing.B) {
-	fs := NewTestFS()
-
-	path := strings.Repeat("/tmp", b.N)
-
-	for n := 0; n < b.N; n++ {
-		err := fs.Mkdir(path[:4*(n+1)], os.FileMode(0755))
-		if err != nil {
-			b.Error(err)
-		}
-	}
-}
-
-func BenchmarkMkdirWide(b *testing.B) {
+func BenchmarkMkdir(b *testing.B) {
 	fs := NewTestFS()
 
 	for n := 0; n < b.N; n++ {
@@ -46,7 +33,7 @@ func BenchmarkMkdirWide(b *testing.B) {
 	}
 }
 
-func BenchmarkParallelMkdirWide(b *testing.B) {
+func BenchmarkParallelMkdir(b *testing.B) {
 	fs := NewTestFS()
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -69,9 +56,22 @@ func TestMkdirAll(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = fs.lookupPath([]string{"test", "path", "foo"})
+	_, err = fs.find("/test/path/foo")
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func BenchmarkMkdirAll(b *testing.B) {
+	fs := NewTestFS()
+
+	path := strings.Repeat("/tmp", 4)
+
+	for n := 0; n < b.N; n++ {
+		err := fs.MkdirAll("/"+strconv.Itoa(n)+path, os.FileMode(0755))
+		if err != nil {
+			b.Error(err)
+		}
 	}
 }
 

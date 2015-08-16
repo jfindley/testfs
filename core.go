@@ -7,7 +7,8 @@ import (
 )
 
 const sep = "/"
-const inodeAllocSize = 128
+const inodeAllocSize = 1024
+const dentryAllocSize = 64
 
 var (
 	Uid, Gid uint16
@@ -23,40 +24,42 @@ type inum uint64
 
 // inode is loosely based on a POSIX inode.  It contains the metadata of a file.
 type inode struct {
-	attrs
-	linkCount  uint16
-	linkTarget inum
-	mu         *sync.Mutex
-}
-
-func newInode(uid, gid uint16, mode os.FileMode) inode {
-	var i inode
-	i.xattrs = make(map[string]string)
-	i.uid = uid
-	i.gid = gid
-	i.mode = mode
-	i.mu = new(sync.Mutex)
-
-	return i
+	id        inum
+	uid       uint16
+	gid       uint16
+	mode      os.FileMode
+	xattrs    map[string]string
+	linkCount uint16
+	relNum    inum
+	data      []byte
+	mu        *sync.Mutex
 }
 
 // dentry is loosely based on a POSIX dentry.  It maps FS names to inodes.
 type dentry struct {
+	name     string
 	inode    inum
-	children map[string]dentry
-	mu       sync.Mutex
+	children []dentry
+	mu       *sync.Mutex
 }
 
-func newDentry(i inum) dentry {
-	var d dentry
-	d.children = make(map[string]dentry)
-	d.inode = i
-	return d
+func (d *dentry) newDentry(i inum, name string) {
+	newDentry := dentry{
+		children: make([]dentry, 0, dentryAllocSize),
+		inode:    i,
+		name:     name,
+		mu:       new(sync.Mutex),
+	}
+	d.mu.Lock()
+	d.children = append(d.children, newDentry)
+	d.mu.Unlock()
 }
 
 func (d *dentry) lookup(name string) *dentry {
-	if this, ok := d.children[name]; ok {
-		return &this
+	for i := range d.children {
+		if d.children[i].name == name {
+			return &d.children[i]
+		}
 	}
 	return nil
 }
@@ -65,8 +68,7 @@ func (d *dentry) lookup(name string) *dentry {
 // slices to allow us to scale to large file numbers more efficiently.
 type TestFS struct {
 	dirTree dentry
-	files   map[inum]inode
-	data    map[inum][]byte
+	files   []inode
 	cwd     string
 	maxInum inum
 	sync.Mutex
@@ -76,11 +78,33 @@ func NewTestFS() *TestFS {
 	t := new(TestFS)
 	t.dirTree.inode = 1
 	t.maxInum = 1
-	t.dirTree.children = make(map[string]dentry)
-	t.files = make(map[inum]inode)
-	t.data = make(map[inum][]byte)
+	t.dirTree.children = make([]dentry, 0, dentryAllocSize)
+	t.dirTree.mu = new(sync.Mutex)
+	t.files = make([]inode, 1, inodeAllocSize)
+	t.newInode(1, 0, 0, os.FileMode(0555)|os.ModeDir)
 	t.cwd = "/"
 	return t
+}
+
+func (t *TestFS) newInode(i inum, uid, gid uint16, mode os.FileMode) {
+
+	t.files = append(t.files, inode{
+		id:     i,
+		xattrs: make(map[string]string),
+		uid:    uid,
+		gid:    gid,
+		mode:   mode,
+		mu:     new(sync.Mutex),
+	})
+}
+
+func (t *TestFS) lookupInode(in inum) *inode {
+	for i := range t.files {
+		if t.files[i].id == in {
+			return &t.files[i]
+		}
+	}
+	return nil
 }
 
 func (t *TestFS) parsePath(path string) ([]string, error) {
@@ -140,9 +164,19 @@ func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 				return this, nil
 			}
 
+			thisInode := t.lookupInode(this.inode)
+			if thisInode == nil {
+				return nil, os.ErrNotExist
+			}
+
 			// Make sure we can read the new subdir
-			if !t.checkPerm(this.inode, 'r', 'x') {
+			if !t.checkPerm(thisInode, 'r', 'x') {
 				return nil, os.ErrPermission
+			}
+
+			// Make sure this is actually a directory before ascending the tree
+			if thisInode.mode&os.ModeDir == 0 {
+				return nil, os.ErrInvalid
 			}
 
 			loc = this
@@ -150,20 +184,11 @@ func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 		}
 
 	}
-
 	return nil, os.ErrNotExist
 }
 
-func (t *TestFS) checkPerm(in inum, perms ...rune) bool {
-	var (
-		i      inode
-		offset uint
-		ok     bool
-	)
-
-	if i, ok = t.files[in]; !ok {
-		return false
-	}
+func (t *TestFS) checkPerm(i *inode, perms ...rune) bool {
+	var offset uint
 
 	switch {
 	case i.uid == Uid:
@@ -219,8 +244,13 @@ func (t *TestFS) find(path string) (inum, error) {
 		return 0, err
 	}
 
-	if !t.checkPerm(d.inode, 'r') {
+	i := t.lookupInode(d.inode)
+	if i == nil {
 		return 0, os.ErrNotExist
+	}
+
+	if !t.checkPerm(i, 'r') {
+		return 0, os.ErrPermission
 	}
 	return d.inode, nil
 }
