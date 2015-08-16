@@ -37,29 +37,29 @@ type inode struct {
 
 // dentry is loosely based on a POSIX dentry.  It maps FS names to inodes.
 type dentry struct {
-	name     string
 	inode    inum
-	children []dentry
+	children map[string]dentry
 	mu       *sync.Mutex
 }
 
-func (d *dentry) newDentry(i inum, name string) {
+func (d dentry) newDentry(i inum, name string) error {
 	newDentry := dentry{
-		children: make([]dentry, 0, dentryAllocSize),
+		children: make(map[string]dentry),
 		inode:    i,
-		name:     name,
 		mu:       new(sync.Mutex),
 	}
 	d.mu.Lock()
-	d.children = append(d.children, newDentry)
+	if _, ok := d.children[name]; ok {
+		return os.ErrExist
+	}
+	d.children[name] = newDentry
 	d.mu.Unlock()
+	return nil
 }
 
-func (d *dentry) lookup(name string) *dentry {
-	for i := range d.children {
-		if d.children[i].name == name {
-			return &d.children[i]
-		}
+func (d dentry) lookup(name string) *dentry {
+	if this, ok := d.children[name]; ok {
+		return &this
 	}
 	return nil
 }
@@ -78,7 +78,7 @@ func NewTestFS() *TestFS {
 	t := new(TestFS)
 	t.dirTree.inode = 1
 	t.maxInum = 1
-	t.dirTree.children = make([]dentry, 0, dentryAllocSize)
+	t.dirTree.children = make(map[string]dentry)
 	t.dirTree.mu = new(sync.Mutex)
 	t.files = make([]inode, 1, inodeAllocSize)
 	t.newInode(1, 0, 0, os.FileMode(0555)|os.ModeDir)

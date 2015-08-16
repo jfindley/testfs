@@ -8,7 +8,7 @@ import (
 func TestParsePath(t *testing.T) {
 	fs := NewTestFS()
 	fs.dirTree.newDentry(2, "tmp")
-	fs.dirTree.children[0].newDentry(3, "test")
+	fs.dirTree.children["tmp"].newDentry(3, "test")
 
 	terms, err := fs.parsePath("/")
 	if err != nil || terms != nil {
@@ -95,7 +95,7 @@ func BenchmarkParsePath(b *testing.B) {
 func TestLookupPath(t *testing.T) {
 	fs := NewTestFS()
 	fs.dirTree.newDentry(2, "tmp")
-	fs.dirTree.children[0].newDentry(3, "test")
+	fs.dirTree.children["tmp"].newDentry(3, "test")
 
 	fs.newInode(2, Uid, Gid, os.FileMode(0777))
 	fs.newInode(3, Uid, Gid, os.FileMode(0777))
@@ -239,7 +239,7 @@ func TestFind(t *testing.T) {
 	fs.dirTree.newDentry(testInum, "tmp")
 	fs.newInode(testInum, Uid, Gid, os.FileMode(0755)|os.ModeDir)
 	testInum = fs.newInum()
-	fs.dirTree.children[0].newDentry(testInum, "test")
+	fs.dirTree.children["tmp"].newDentry(testInum, "test")
 	fs.newInode(testInum, Uid, Gid, os.FileMode(0755)|os.ModeDir)
 
 	in, err := fs.find("/tmp/test")
