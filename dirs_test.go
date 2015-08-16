@@ -10,6 +10,7 @@ import (
 
 func TestMkdir(t *testing.T) {
 	fs := NewTestFS()
+	Uid = 0
 
 	err := fs.Mkdir("/tmp", os.FileMode(0755))
 	if err != nil {
@@ -24,6 +25,7 @@ func TestMkdir(t *testing.T) {
 
 func BenchmarkMkdir(b *testing.B) {
 	fs := NewTestFS()
+	Uid = 0
 
 	for n := 0; n < b.N; n++ {
 		err := fs.Mkdir("/"+strconv.Itoa(n), os.FileMode(0755))
@@ -35,6 +37,7 @@ func BenchmarkMkdir(b *testing.B) {
 
 func BenchmarkParallelMkdir(b *testing.B) {
 	fs := NewTestFS()
+	Uid = 0
 
 	b.RunParallel(func(pb *testing.PB) {
 
@@ -64,6 +67,7 @@ func TestMkdirAll(t *testing.T) {
 
 func BenchmarkMkdirAll(b *testing.B) {
 	fs := NewTestFS()
+	Uid = 0
 
 	path := strings.Repeat("/tmp", 4)
 

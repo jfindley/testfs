@@ -2,6 +2,7 @@ package testfs
 
 import (
 	"os"
+	"path"
 )
 
 func (t *TestFS) Chmod(name string, mode os.FileMode) error {
@@ -44,6 +45,30 @@ func (t *TestFS) Chown(name string, uid, gid int) error {
 	this.gid = uint16(gid)
 
 	t.files[in] = this
+
+	return nil
+}
+
+func (t *TestFS) Link(oldname, newname string) error {
+	in, err := t.find(oldname)
+	if err != nil {
+		return err
+	}
+	dir, err := t.findDentry(path.Dir(newname))
+	if err != nil {
+		return err
+	}
+
+	rel := t.lookupInode(in)
+	if rel == nil {
+		return os.ErrNotExist
+	}
+
+	err = dir.newDentry(in, path.Base(newname))
+	if err != nil {
+		return err
+	}
+	rel.linkCount++
 
 	return nil
 }

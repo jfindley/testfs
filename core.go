@@ -89,12 +89,13 @@ func NewTestFS() *TestFS {
 func (t *TestFS) newInode(i inum, uid, gid uint16, mode os.FileMode) {
 
 	t.files = append(t.files, inode{
-		id:     i,
-		xattrs: make(map[string]string),
-		uid:    uid,
-		gid:    gid,
-		mode:   mode,
-		mu:     new(sync.Mutex),
+		id:        i,
+		xattrs:    make(map[string]string),
+		uid:       uid,
+		gid:       gid,
+		mode:      mode,
+		mu:        new(sync.Mutex),
+		linkCount: 1,
 	})
 }
 
@@ -170,7 +171,7 @@ func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 			}
 
 			// Make sure we can read the new subdir
-			if !t.checkPerm(thisInode, 'r', 'x') {
+			if !checkPerm(thisInode, 'r', 'x') {
 				return nil, os.ErrPermission
 			}
 
@@ -187,7 +188,11 @@ func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
 	return nil, os.ErrNotExist
 }
 
-func (t *TestFS) checkPerm(i *inode, perms ...rune) bool {
+func checkPerm(i *inode, perms ...rune) bool {
+	if Uid == 0 {
+		// root can do anything
+		return true
+	}
 	var offset uint
 
 	switch {
@@ -233,6 +238,9 @@ func (t *TestFS) newInum() inum {
 }
 
 func (t *TestFS) find(path string) (inum, error) {
+	if path == "/" {
+		return t.dirTree.inode, nil
+	}
 
 	terms, err := t.parsePath(path)
 	if err != nil {
@@ -249,8 +257,58 @@ func (t *TestFS) find(path string) (inum, error) {
 		return 0, os.ErrNotExist
 	}
 
-	if !t.checkPerm(i, 'r') {
+	if !checkPerm(i, 'r') {
 		return 0, os.ErrPermission
 	}
 	return d.inode, nil
+}
+
+func (t *TestFS) findDentry(path string) (*dentry, error) {
+	if path == "/" {
+		return &t.dirTree, nil
+	}
+
+	terms, err := t.parsePath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := t.lookupPath(terms)
+	if err != nil {
+		return nil, err
+	}
+
+	i := t.lookupInode(d.inode)
+	if i == nil {
+		return nil, os.ErrNotExist
+	}
+
+	if !checkPerm(i, 'r', 'x') {
+		return nil, os.ErrPermission
+	}
+	return d, nil
+}
+
+func (t *TestFS) create(dir *dentry, name string, perm os.FileMode) (inum, error) {
+	// Check permissions first
+	dirInode := t.lookupInode(dir.inode)
+	if dirInode == nil {
+		return 0, os.ErrNotExist
+	}
+
+	if !checkPerm(dirInode, 'w') {
+		return 0, os.ErrPermission
+	}
+
+	i := t.newInum()
+
+	err := dir.newDentry(i, name)
+	if err != nil {
+		return 0, err
+	}
+
+	t.newInode(i, Uid, Gid, perm)
+
+	return i, nil
+
 }

@@ -2,38 +2,21 @@ package testfs
 
 import (
 	"os"
+	"path"
 )
 
 func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
 	// Ensure the dir mode is set
 	perm |= os.ModeDir
 
-	terms, err := t.parsePath(name)
+	d, err := t.findDentry(path.Dir(name))
 	if err != nil {
 		return err
-	}
-
-	// Don't try to create root
-	if terms == nil {
-		return nil
-	}
-
-	d, err := t.lookupPath(terms[:len(terms)-1])
-	if err != nil {
-		return err
-	}
-
-	// Fail if dir exists
-	if d.lookup(terms[len(terms)-1]) != nil {
-		return os.ErrExist
 	}
 
 	// Create the directory
-	i := t.newInum()
-	d.newDentry(i, terms[len(terms)-1])
-	t.newInode(i, Uid, Gid, perm)
-
-	return nil
+	_, err = t.create(d, path.Base(name), perm)
+	return err
 }
 
 func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
@@ -57,9 +40,10 @@ func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
 		if os.IsNotExist(err) {
 
 			// Create the directory
-			newInum := t.newInum()
-			dir.newDentry(newInum, terms[i])
-			t.newInode(newInum, Uid, Gid, perm)
+			_, err = t.create(dir, terms[i], perm)
+			if err != nil {
+				return err
+			}
 
 			dir, err = t.lookupPath(terms[:i+1])
 			if err != nil {

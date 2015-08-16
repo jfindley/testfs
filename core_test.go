@@ -175,42 +175,42 @@ func TestCheckPerm(t *testing.T) {
 	fs.newInode(7, 666, 666, os.FileMode(0007))
 
 	// Check failures
-	if i := fs.lookupInode(2); fs.checkPerm(i, 'r') {
+	if i := fs.lookupInode(2); checkPerm(i, 'r') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(2); fs.checkPerm(i, 'w') {
+	if i := fs.lookupInode(2); checkPerm(i, 'w') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(2); fs.checkPerm(i, 'x') {
+	if i := fs.lookupInode(2); checkPerm(i, 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(3); fs.checkPerm(i, 'r') {
+	if i := fs.lookupInode(3); checkPerm(i, 'r') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(3); fs.checkPerm(i, 'w') {
+	if i := fs.lookupInode(3); checkPerm(i, 'w') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(3); fs.checkPerm(i, 'x') {
+	if i := fs.lookupInode(3); checkPerm(i, 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(4); fs.checkPerm(i, 'r') {
+	if i := fs.lookupInode(4); checkPerm(i, 'r') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(4); fs.checkPerm(i, 'w') {
+	if i := fs.lookupInode(4); checkPerm(i, 'w') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(4); fs.checkPerm(i, 'x') {
+	if i := fs.lookupInode(4); checkPerm(i, 'x') {
 		t.Error("Permission check failed")
 	}
 
 	// Check success
-	if i := fs.lookupInode(5); !fs.checkPerm(i, 'r', 'w', 'x') {
+	if i := fs.lookupInode(5); !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(6); !fs.checkPerm(i, 'r', 'w', 'x') {
+	if i := fs.lookupInode(6); !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(7); !fs.checkPerm(i, 'r', 'w', 'x') {
+	if i := fs.lookupInode(7); !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
 
@@ -221,7 +221,7 @@ func BenchmarkCheckPerm(b *testing.B) {
 	fs.newInode(2, Uid, Gid, os.FileMode(0644))
 
 	for n := 0; n < b.N; n++ {
-		if i := fs.lookupInode(2); !fs.checkPerm(i, 'r', 'w') {
+		if i := fs.lookupInode(2); !checkPerm(i, 'r', 'w') {
 			b.Error("Permission check failed")
 		}
 	}
