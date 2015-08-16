@@ -7,8 +7,7 @@ import (
 )
 
 const sep = "/"
-const inodeAllocSize = 1024
-const dentryAllocSize = 64
+const inodeAllocSize = 4096
 
 var (
 	Uid, Gid uint16
@@ -38,28 +37,30 @@ type inode struct {
 // dentry is loosely based on a POSIX dentry.  It maps FS names to inodes.
 type dentry struct {
 	inode    inum
-	children map[string]dentry
+	name     string
+	children map[string]*dentry
 	mu       *sync.Mutex
 }
 
-func (d dentry) newDentry(i inum, name string) error {
+func (d *dentry) newDentry(i inum, name string) error {
 	newDentry := dentry{
-		children: make(map[string]dentry),
+		children: make(map[string]*dentry),
 		inode:    i,
 		mu:       new(sync.Mutex),
+		name:     name,
 	}
 	d.mu.Lock()
 	if _, ok := d.children[name]; ok {
 		return os.ErrExist
 	}
-	d.children[name] = newDentry
+	d.children[name] = &newDentry
 	d.mu.Unlock()
 	return nil
 }
 
 func (d dentry) lookup(name string) *dentry {
 	if this, ok := d.children[name]; ok {
-		return &this
+		return this
 	}
 	return nil
 }
@@ -69,7 +70,8 @@ func (d dentry) lookup(name string) *dentry {
 type TestFS struct {
 	dirTree dentry
 	files   []inode
-	cwd     string
+	cwd     *dentry
+	cwdPath string
 	maxInum inum
 	sync.Mutex
 }
@@ -78,11 +80,13 @@ func NewTestFS() *TestFS {
 	t := new(TestFS)
 	t.dirTree.inode = 1
 	t.maxInum = 1
-	t.dirTree.children = make(map[string]dentry)
+	t.dirTree.children = make(map[string]*dentry)
 	t.dirTree.mu = new(sync.Mutex)
+	t.dirTree.name = "/"
 	t.files = make([]inode, 1, inodeAllocSize)
 	t.newInode(1, 0, 0, os.FileMode(0555)|os.ModeDir)
-	t.cwd = "/"
+	t.cwd = &t.dirTree
+	t.cwdPath = "/"
 	return t
 }
 
@@ -118,12 +122,7 @@ func (t *TestFS) parsePath(path string) ([]string, error) {
 		path = path[:len(path)-1]
 	}
 
-	// If path does not start with /, prepend CWD.
-	if path[0:1] != sep {
-		path = t.cwd + sep + path
-	}
-
-	elems := strings.Split(path[1:], sep)
+	elems := strings.Split(path, sep)
 	terms := make([]string, 0, len(elems))
 
 	for i := range elems {
@@ -149,13 +148,23 @@ func (t *TestFS) parsePath(path string) ([]string, error) {
 	return terms[:len(terms)], nil
 }
 
-func (t *TestFS) lookupPath(terms []string) (*dentry, error) {
+func (t *TestFS) lookupPath(path string) (*dentry, error) {
+
+	terms, err := t.parsePath(path)
+	if err != nil {
+		return nil, err
+	}
 
 	if terms == nil || len(terms) == 0 {
 		return &t.dirTree, nil
 	}
 
 	loc := &t.dirTree
+
+	// If path does not start with sep, start at cwd
+	if path[0] != []byte(sep)[0] {
+		loc = t.cwd
+	}
 
 	for i := range terms {
 
@@ -242,12 +251,7 @@ func (t *TestFS) find(path string) (inum, error) {
 		return t.dirTree.inode, nil
 	}
 
-	terms, err := t.parsePath(path)
-	if err != nil {
-		return 0, err
-	}
-
-	d, err := t.lookupPath(terms)
+	d, err := t.lookupPath(path)
 	if err != nil {
 		return 0, err
 	}
@@ -268,12 +272,7 @@ func (t *TestFS) findDentry(path string) (*dentry, error) {
 		return &t.dirTree, nil
 	}
 
-	terms, err := t.parsePath(path)
-	if err != nil {
-		return nil, err
-	}
-
-	d, err := t.lookupPath(terms)
+	d, err := t.lookupPath(path)
 	if err != nil {
 		return nil, err
 	}

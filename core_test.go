@@ -2,6 +2,7 @@ package testfs
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -68,15 +69,6 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	fs.cwd = "/tmp"
-	terms, err = fs.parsePath("test")
-	if err != nil {
-		t.Error("Parse failure")
-	}
-	if len(terms) != 2 || terms[0] != "tmp" || terms[1] != "test" {
-		t.Error("Parse failure")
-	}
-
 }
 
 func BenchmarkParsePath(b *testing.B) {
@@ -100,7 +92,7 @@ func TestLookupPath(t *testing.T) {
 	fs.newInode(2, Uid, Gid, os.FileMode(0777))
 	fs.newInode(3, Uid, Gid, os.FileMode(0777))
 
-	d, err := fs.lookupPath(nil)
+	d, err := fs.lookupPath("/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +104,7 @@ func TestLookupPath(t *testing.T) {
 		t.Error("Wrong root inode number")
 	}
 
-	d, err = fs.lookupPath([]string{"tmp"})
+	d, err = fs.lookupPath("/tmp")
 	if err != nil {
 		t.Error(err)
 	}
@@ -121,14 +113,14 @@ func TestLookupPath(t *testing.T) {
 	}
 
 	// /tmp is not a dir, make sure this fails
-	d, err = fs.lookupPath([]string{"tmp", "test"})
+	d, err = fs.lookupPath("/tmp/test")
 	if err != os.ErrInvalid || d != nil {
 		t.Error("Bad error status")
 	}
 
 	i := fs.lookupInode(2)
 	i.mode = os.FileMode(0777) | os.ModeDir
-	d, err = fs.lookupPath([]string{"tmp", "test"})
+	d, err = fs.lookupPath("/tmp/test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +135,7 @@ func TestLookupPath(t *testing.T) {
 }
 
 func BenchmarkLookupPath(b *testing.B) {
-	path := "/test/path/with/five/elements"
+	path := strings.Repeat("/testpath", 50)
 
 	fs := NewTestFS()
 	err := fs.MkdirAll(path, os.FileMode(0775))
@@ -151,13 +143,8 @@ func BenchmarkLookupPath(b *testing.B) {
 		b.Error(err)
 	}
 
-	terms, err := fs.parsePath(path)
-	if err != nil {
-		b.Error(err)
-	}
-
 	for n := 0; n < b.N; n++ {
-		_, err = fs.lookupPath(terms)
+		_, err = fs.lookupPath(path)
 		if err != nil {
 			b.Error(err)
 		}

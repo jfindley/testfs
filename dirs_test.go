@@ -17,7 +17,7 @@ func TestMkdir(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = fs.lookupPath([]string{"tmp"})
+	_, err = fs.lookupPath("/tmp")
 	if err != nil {
 		t.Error(err)
 	}
@@ -86,7 +86,7 @@ func TestChdir(t *testing.T) {
 	if !os.IsNotExist(err) {
 		t.Error("Bad error code")
 	}
-	if fs.cwd != "/" {
+	if fs.cwd.name != "/" {
 		t.Error("Wrong working dir")
 	}
 
@@ -99,7 +99,7 @@ func TestChdir(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if fs.cwd != "/tmp" {
+	if fs.cwd.name != "tmp" {
 		t.Error("Wrong working dir")
 	}
 
@@ -107,7 +107,32 @@ func TestChdir(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if fs.cwd != "/tmp/test" {
+	if fs.cwd.name != "test" {
 		t.Error("Wrong working dir")
+	}
+}
+
+func TestGetwd(t *testing.T) {
+	fs := NewTestFS()
+	dir, err := fs.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+	if dir != "/" {
+		t.Error("Bad WD")
+	}
+
+	err = fs.MkdirAll("/tmp/test", os.FileMode(0777))
+	if err != nil {
+		t.Error(err)
+	}
+
+	fs.Chdir("/tmp/test")
+	dir, err = fs.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+	if dir != "/tmp/test" {
+		t.Error("Bad WD")
 	}
 }

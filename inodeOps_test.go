@@ -93,17 +93,6 @@ func TestLink(t *testing.T) {
 	}
 }
 
-func TestGetwd(t *testing.T) {
-	fs := NewTestFS()
-	dir, err := fs.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
-	if dir != "/" {
-		t.Error("Bad WD")
-	}
-}
-
 func TestReadlink(t *testing.T) {
 	fs := NewTestFS()
 

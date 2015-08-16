@@ -1,6 +1,7 @@
 package testfs
 
 import (
+	"errors"
 	"os"
 	"path"
 )
@@ -36,23 +37,19 @@ func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
 	dir := &t.dirTree
 
 	for i := range terms {
-		d, err := t.lookupPath(terms[:i+1])
-		if os.IsNotExist(err) {
-
+		d := dir.lookup(terms[i])
+		if d == nil {
 			// Create the directory
 			_, err = t.create(dir, terms[i], perm)
 			if err != nil {
 				return err
 			}
 
-			dir, err = t.lookupPath(terms[:i+1])
-			if err != nil {
-				// This should not happen
-				return err
+			dir = dir.lookup(terms[i])
+			if dir == nil {
+				// Very, very unlikely race, catch it anyway
+				return errors.New("Unexpected error")
 			}
-
-		} else if err != nil {
-			return err
 		} else {
 			dir = d
 		}
@@ -62,18 +59,23 @@ func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
 }
 
 func (t *TestFS) Chdir(dir string) error {
-	terms, err := t.parsePath(dir)
+	Uid = 0
+	d, err := t.lookupPath(dir)
 	if err != nil {
 		return err
 	}
-	_, err = t.lookupPath(terms)
-	if err != nil {
-		return err
+	if t.lookupInode(d.inode).mode&os.ModeDir == 0 {
+		return os.ErrInvalid
 	}
-	if dir[0:1] == "/" {
-		t.cwd = dir
+	t.cwd = d
+	if dir[0] == '/' {
+		t.cwdPath = dir
 	} else {
-		t.cwd = t.cwd + "/" + dir
+		t.cwdPath = t.cwdPath + "/" + dir
 	}
 	return nil
+}
+
+func (t *TestFS) Getwd() (dir string, err error) {
+	return t.cwdPath, nil
 }

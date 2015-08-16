@@ -78,10 +78,6 @@ func (t *TestFS) Link(oldname, newname string) error {
 	return nil
 }
 
-func (t *TestFS) Getwd() (dir string, err error) {
-	return t.cwd, nil
-}
-
 func (t *TestFS) Readlink(name string) (string, error) {
 	in, err := t.find(name)
 	if err != nil {
