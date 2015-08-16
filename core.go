@@ -30,7 +30,7 @@ type inode struct {
 	mode      os.FileMode
 	xattrs    map[string]string
 	linkCount uint16
-	relNum    inum
+	rel       string
 	data      []byte
 	mu        *sync.Mutex
 }

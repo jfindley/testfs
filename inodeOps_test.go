@@ -92,3 +92,58 @@ func TestLink(t *testing.T) {
 		t.Error("Wrong link count for inode", fs.lookupInode(dst).linkCount)
 	}
 }
+
+func TestGetwd(t *testing.T) {
+	fs := NewTestFS()
+	dir, err := fs.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+	if dir != "/" {
+		t.Error("Bad WD")
+	}
+}
+
+func TestReadlink(t *testing.T) {
+	fs := NewTestFS()
+
+	in, err := fs.create(&fs.dirTree, "tmp", os.FileMode(0644)|os.ModeSymlink)
+	if err != nil {
+		t.Error(err)
+	}
+
+	link := fs.lookupInode(in)
+	link.rel = "test"
+
+	res, err := fs.Readlink("tmp")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if res != "test" {
+		t.Error("Bad link data")
+	}
+}
+
+func TestRemove(t *testing.T) {
+	fs := NewTestFS()
+
+	err := fs.Mkdir("test", os.FileMode(0500))
+	if err != nil {
+		t.Error(err)
+	}
+
+	Uid = uint16(os.Getuid())
+
+	err = fs.Remove("/test")
+	if !os.IsPermission(err) {
+		t.Error(err)
+	}
+
+	Uid = 0
+
+	err = fs.Remove("test")
+	if err != nil {
+		t.Error(err)
+	}
+}
