@@ -136,7 +136,7 @@ func TestLookupPath(t *testing.T) {
 
 func BenchmarkLookupPath(b *testing.B) {
 	path := strings.Repeat("/testpath", 50)
-
+	Uid = 0
 	fs := NewTestFS()
 	err := fs.MkdirAll(path, os.FileMode(0775))
 	if err != nil {
