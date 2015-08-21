@@ -83,6 +83,7 @@ func TestParsePath(t *testing.T) {
 }
 
 func BenchmarkParsePath(b *testing.B) {
+	fs = NewTestFS()
 	path := "/test/path/with/five/elements"
 
 	for n := 0; n < b.N; n++ {
@@ -151,13 +152,14 @@ func TestCheckPerm(t *testing.T) {
 }
 
 func BenchmarkCheckPerm(b *testing.B) {
-	err := fs.dirTree.new("2", Uid, Gid, os.FileMode(0644))
+	fs = NewTestFS()
+	err := fs.dirTree.new("benchcheckperm", Uid, Gid, os.FileMode(0644))
 	if err != nil {
 		b.Error(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		if !checkPerm(fs.dirTree.children["2"], 'r', 'w') {
+		if !checkPerm(fs.dirTree.children["benchcheckperm"], 'r', 'w') {
 			b.Error("Permission check failed")
 		}
 	}
