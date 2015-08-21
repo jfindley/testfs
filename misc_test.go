@@ -127,3 +127,7 @@ func TestRemove(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// func TestRemoveAll(t *testing.T) {
+
+// }

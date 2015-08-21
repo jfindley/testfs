@@ -92,6 +92,18 @@ func (t *TestFS) Readlink(name string) (string, error) {
 
 }
 
+func unlink(in *inode) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	if in.linkCount <= 1 {
+		in = nil
+	} else {
+		in.linkCount--
+	}
+	return
+}
+
 func (t *TestFS) Remove(name string) error {
 
 	d, err := t.find(path.Dir(name))
@@ -121,14 +133,22 @@ func (t *TestFS) Remove(name string) error {
 
 }
 
-func unlink(in *inode) {
-	in.mu.Lock()
-	defer in.mu.Unlock()
+func (t *TestFS) RemoveAll(path string) error {
+	return nil
+}
 
-	if in.linkCount <= 1 {
-		in = nil
-	} else {
-		in.linkCount--
-	}
-	return
+func (t *TestFS) Rename(oldpath, newpath string) error {
+	return nil
+}
+
+func (t *TestFS) Symlink(oldname, newname string) error {
+	return nil
+}
+
+func (t *TestFS) Lstat(path string) (os.FileInfo, error) {
+	return nil, nil
+}
+
+func (t *TestFS) Stat(path string) (os.FileInfo, error) {
+	return nil, nil
 }
