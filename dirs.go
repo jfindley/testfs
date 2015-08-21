@@ -1,7 +1,6 @@
 package testfs
 
 import (
-	"errors"
 	"os"
 	"path"
 )
@@ -10,64 +9,92 @@ func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
 	// Ensure the dir mode is set
 	perm |= os.ModeDir
 
-	d, err := t.findDentry(path.Dir(name))
+	dir, err := t.find(path.Dir(name))
 	if err != nil {
 		return err
 	}
 
+	if dir.mode&os.ModeDir == 0 {
+		return os.ErrInvalid
+	}
+
 	// Create the directory
-	_, err = t.create(d, path.Base(name), perm)
-	return err
+	return dir.new(path.Base(name), Uid, Gid, perm)
 }
 
 func (t *TestFS) MkdirAll(name string, perm os.FileMode) error {
 	// Ensure the dir mode is set
 	perm |= os.ModeDir
 
-	terms, err := t.parsePath(name)
+	terms, err := parsePath(name)
 	if err != nil {
 		return err
 	}
 
-	// Don't try to create root
-	if terms == nil {
+	var dir *inode
+
+	if name[0] == '/' {
+		dir = &t.dirTree
+	} else {
+		dir = t.cwd
+	}
+
+	return dir.mkdirAll(terms, perm)
+}
+
+func (i *inode) mkdirAll(terms []string, perm os.FileMode) error {
+	if len(terms) == 0 {
 		return nil
 	}
 
-	dir := &t.dirTree
-
-	for i := range terms {
-		d := dir.lookup(terms[i])
-		if d == nil {
-			// Create the directory
-			_, err = t.create(dir, terms[i], perm)
-			if err != nil {
-				return err
-			}
-
-			dir = dir.lookup(terms[i])
-			if dir == nil {
-				// Very, very unlikely race, catch it anyway
-				return errors.New("Unexpected error")
-			}
-		} else {
-			dir = d
+	err := i.new(terms[0], Uid, Gid, perm)
+	if len(terms) == 1 {
+		if os.IsExist(err) {
+			return nil
 		}
+		return err
 	}
 
-	return nil
+	dir := i.children[terms[0]]
+
+	switch {
+
+	case err == nil:
+		return dir.mkdirAll(terms[1:], perm)
+
+	case os.IsExist(err):
+		// If the child is not a directory, fail
+		if i.children[terms[0]].mode&os.ModeDir == 0 {
+			return err
+		}
+		// If it is a directory, just continue
+		return dir.mkdirAll(terms[1:], perm)
+
+	default:
+		// Some other error
+		return err
+
+	}
+
 }
 
 func (t *TestFS) Chdir(dir string) error {
-	Uid = 0
-	d, err := t.lookupPath(dir)
+
+	d, err := t.find(dir)
 	if err != nil {
 		return err
 	}
-	if t.lookupInode(d.inode).mode&os.ModeDir == 0 {
+
+	if d.mode&os.ModeDir == 0 {
 		return os.ErrInvalid
 	}
+
+	if !checkPerm(d, 'r', 'x') {
+		return os.ErrPermission
+	}
+
 	t.cwd = d
+
 	if dir[0] == '/' {
 		t.cwdPath = dir
 	} else {

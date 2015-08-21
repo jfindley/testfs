@@ -17,7 +17,7 @@ func TestMkdir(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = fs.lookupPath("/tmp")
+	_, err = fs.find("/tmp")
 	if err != nil {
 		t.Error(err)
 	}

@@ -7,67 +7,58 @@ import (
 
 func TestChmod(t *testing.T) {
 	fs := NewTestFS()
-	in := fs.newInum()
-	fs.dirTree.newDentry(in, "test")
-	fs.newInode(in, Uid, Gid, os.FileMode(0755))
+	fs.dirTree.new("test", Uid, Gid, os.FileMode(0755))
 
 	err := fs.Chmod("/test", os.FileMode(0644))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if fs.files[in].mode != os.FileMode(0644) {
-		t.Error("Bad file mode")
+	if fs.dirTree.children["test"].mode != os.FileMode(0644) {
+		t.Error("Bad file mode", fs.dirTree.children["test"].mode)
 	}
 
 	// Test other attributes are preserved
-	i := fs.lookupInode(in)
-	i.mode = os.FileMode(0755) | os.ModeDir
+	fs.dirTree.children["test"].mode = os.FileMode(0755) | os.ModeDir
 
 	err = fs.Chmod("/test", os.FileMode(0700))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if i.mode != os.FileMode(0700)|os.ModeDir {
-		t.Error("Bad file mode", fs.files[in].mode, os.FileMode(0700)|os.ModeDir)
+	if fs.dirTree.children["test"].mode != os.FileMode(0700)|os.ModeDir {
+		t.Error("Bad file mode")
 	}
 
-	i.mode = os.FileMode(0755) | os.ModeSocket | os.ModeSetuid
+	fs.dirTree.children["test"].mode = os.FileMode(0755) | os.ModeSocket | os.ModeSetuid
 
 	err = fs.Chmod("/test", os.FileMode(0700))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if i.mode != os.FileMode(0700)|os.ModeSocket {
+	if fs.dirTree.children["test"].mode != os.FileMode(0700)|os.ModeSocket {
 		t.Error("Bad file mode")
 	}
 }
 
 func TestChown(t *testing.T) {
 	fs := NewTestFS()
-	in := fs.newInum()
-	fs.dirTree.newDentry(in, "test")
-	fs.newInode(in, Uid, Gid, os.FileMode(0644))
+	fs.dirTree.new("test", Uid, Gid, os.FileMode(0644))
 
 	err := fs.Chown("/test", 666, 777)
 	if err != nil {
 		t.Error(err)
 	}
 
-	i := fs.lookupInode(in)
-
-	if i.uid != 666 || i.gid != 777 {
+	if fs.dirTree.children["test"].uid != 666 || fs.dirTree.children["test"].gid != 777 {
 		t.Error("Bad ownership")
 	}
 }
 
 func TestLink(t *testing.T) {
 	fs := NewTestFS()
-	in := fs.newInum()
-	fs.dirTree.newDentry(in, "src")
-	fs.newInode(in, Uid, Gid, os.FileMode(0644))
+	fs.dirTree.new("src", Uid, Gid, os.FileMode(0644))
 
 	err := fs.Link("/src", "/dst")
 	if err != nil {
@@ -88,34 +79,34 @@ func TestLink(t *testing.T) {
 		t.Error("Wrong inode for link")
 	}
 
-	if fs.lookupInode(dst).linkCount != 2 {
-		t.Error("Wrong link count for inode", fs.lookupInode(dst).linkCount)
+	if fs.dirTree.children["dst"].linkCount != 2 {
+		t.Error("Wrong link count for inode")
 	}
 }
 
 func TestReadlink(t *testing.T) {
 	fs := NewTestFS()
 
-	in, err := fs.create(&fs.dirTree, "tmp", os.FileMode(0644)|os.ModeSymlink)
+	err := fs.dirTree.new("dst", Uid, Gid, os.FileMode(0644)|os.ModeSymlink)
 	if err != nil {
 		t.Error(err)
 	}
 
-	link := fs.lookupInode(in)
-	link.rel = "test"
+	fs.dirTree.children["dst"].relName = "/src"
 
-	res, err := fs.Readlink("tmp")
+	res, err := fs.Readlink("/dst")
 	if err != nil {
 		t.Error(err)
 	}
 
-	if res != "test" {
+	if res != "/src" {
 		t.Error("Bad link data")
 	}
 }
 
 func TestRemove(t *testing.T) {
 	fs := NewTestFS()
+	Uid = 0
 
 	err := fs.Mkdir("test", os.FileMode(0500))
 	if err != nil {
