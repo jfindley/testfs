@@ -8,9 +8,9 @@ import (
 // We just test the interface works and basic operations succeed.
 // Most testing is done in the os package itself.
 func TestOSFS(t *testing.T) {
-	fs := NewOSFS()
+	osfs := NewOSFS()
 
-	f, err := fs.Create(os.TempDir() + "/testfile")
+	f, err := osfs.Create(os.TempDir() + "/testfile")
 	if err != nil {
 		t.Error(err)
 	}
@@ -23,7 +23,7 @@ func TestOSFS(t *testing.T) {
 		t.Error("Bad filesize")
 	}
 
-	err = fs.Remove(os.TempDir() + "/testfile")
+	err = osfs.Remove(os.TempDir() + "/testfile")
 	if err != nil {
 		t.Error(err)
 	}

@@ -18,101 +18,71 @@ func init() {
 	Gid = uint16(os.Getgid())
 }
 
-// inum is the inode number type
-type inum uint64
-
-// inode is loosely based on a POSIX inode.  It contains the metadata of a file.
+// inode represents an entity in the filesystem.  Children are represented as
+// pointers to allow us to simulate hardlinks.
 type inode struct {
-	id        inum
+	name      string
 	uid       uint16
 	gid       uint16
 	mode      os.FileMode
 	xattrs    map[string]string
 	linkCount uint16
-	rel       string
+	rel       *inode
+	relName   string
 	data      []byte
+	children  map[string]*inode
 	mu        *sync.Mutex
 }
 
-// dentry is loosely based on a POSIX dentry.  It maps FS names to inodes.
-type dentry struct {
-	inode    inum
-	name     string
-	children map[string]*dentry
-	mu       *sync.Mutex
-}
-
-func (d *dentry) newDentry(i inum, name string) error {
-	newDentry := dentry{
-		children: make(map[string]*dentry),
-		inode:    i,
-		mu:       new(sync.Mutex),
-		name:     name,
+func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
+	if !checkPerm(i, 'w', 'x') {
+		return os.ErrPermission
 	}
-	d.mu.Lock()
-	if _, ok := d.children[name]; ok {
+	entry := inode{
+		mu:        new(sync.Mutex),
+		xattrs:    make(map[string]string),
+		name:      name,
+		uid:       uid,
+		gid:       gid,
+		mode:      mode,
+		linkCount: 1,
+	}
+	if mode&os.ModeDir == os.ModeDir {
+		entry.children = make(map[string]*inode)
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if _, ok := i.children[name]; ok {
 		return os.ErrExist
 	}
-	d.children[name] = &newDentry
-	d.mu.Unlock()
-	return nil
-}
-
-func (d dentry) lookup(name string) *dentry {
-	if this, ok := d.children[name]; ok {
-		return this
-	}
+	i.children[name] = &entry
 	return nil
 }
 
 // TestFS implements an in-memory filesystem.  We use maps rather than
 // slices to allow us to scale to large file numbers more efficiently.
 type TestFS struct {
-	dirTree dentry
-	files   []inode
-	cwd     *dentry
+	dirTree inode
+	cwd     *inode
 	cwdPath string
-	maxInum inum
-	sync.Mutex
 }
 
 func NewTestFS() *TestFS {
 	t := new(TestFS)
-	t.dirTree.inode = 1
-	t.maxInum = 1
-	t.dirTree.children = make(map[string]*dentry)
+	t.dirTree.children = make(map[string]*inode)
 	t.dirTree.mu = new(sync.Mutex)
-	t.dirTree.name = "/"
-	t.files = make([]inode, 1, inodeAllocSize)
-	t.newInode(1, 0, 0, os.FileMode(0555)|os.ModeDir)
+	t.dirTree.uid = 0
+	t.dirTree.gid = 0
+	t.dirTree.mode = os.FileMode(0555) | os.ModeDir
+	t.dirTree.xattrs = make(map[string]string)
+	t.dirTree.linkCount = 1
+	t.dirTree.name = sep
 	t.cwd = &t.dirTree
-	t.cwdPath = "/"
+	t.cwdPath = sep
 	return t
 }
 
-func (t *TestFS) newInode(i inum, uid, gid uint16, mode os.FileMode) {
-
-	t.files = append(t.files, inode{
-		id:        i,
-		xattrs:    make(map[string]string),
-		uid:       uid,
-		gid:       gid,
-		mode:      mode,
-		mu:        new(sync.Mutex),
-		linkCount: 1,
-	})
-}
-
-func (t *TestFS) lookupInode(in inum) *inode {
-	for i := range t.files {
-		if t.files[i].id == in {
-			return &t.files[i]
-		}
-	}
-	return nil
-}
-
-func (t *TestFS) parsePath(path string) ([]string, error) {
+func parsePath(path string) ([]string, error) {
 	if path == sep {
 		return nil, nil
 	}
@@ -148,52 +118,29 @@ func (t *TestFS) parsePath(path string) ([]string, error) {
 	return terms[:len(terms)], nil
 }
 
-func (t *TestFS) lookupPath(path string) (*dentry, error) {
+func (i *inode) lookup(terms []string) (*inode, error) {
 
-	terms, err := t.parsePath(path)
-	if err != nil {
-		return nil, err
-	}
+	if this, ok := i.children[terms[0]]; ok {
 
-	if terms == nil || len(terms) == 0 {
-		return &t.dirTree, nil
-	}
-
-	loc := &t.dirTree
-
-	// If path does not start with sep, start at cwd
-	if path[0] != []byte(sep)[0] {
-		loc = t.cwd
-	}
-
-	for i := range terms {
-
-		if this := loc.lookup(terms[i]); this != nil {
-
-			if i == len(terms)-1 {
-				return this, nil
-			}
-
-			thisInode := t.lookupInode(this.inode)
-			if thisInode == nil {
-				return nil, os.ErrNotExist
-			}
-
-			// Make sure we can read the new subdir
-			if !checkPerm(thisInode, 'r', 'x') {
-				return nil, os.ErrPermission
-			}
-
-			// Make sure this is actually a directory before ascending the tree
-			if thisInode.mode&os.ModeDir == 0 {
-				return nil, os.ErrInvalid
-			}
-
-			loc = this
-
+		// If we're at the end of the path, just return it
+		if len(terms) == 1 {
+			return this, nil
 		}
 
+		// Make sure we can read the new subdir
+		if !checkPerm(this, 'r', 'x') {
+			return nil, os.ErrPermission
+		}
+
+		// Make sure this is actually a directory before ascending the tree
+		if this.mode&os.ModeDir == 0 {
+			return nil, os.ErrInvalid
+		}
+
+		return this.lookup(terms[1:])
+
 	}
+
 	return nil, os.ErrNotExist
 }
 
@@ -238,76 +185,21 @@ func checkPerm(i *inode, perms ...rune) bool {
 	return true
 }
 
-func (t *TestFS) newInum() inum {
-	t.Lock()
-	t.maxInum++
-	i := t.maxInum
-	t.Unlock()
-	return i
-}
-
-func (t *TestFS) find(path string) (inum, error) {
-	if path == "/" {
-		return t.dirTree.inode, nil
-	}
-
-	d, err := t.lookupPath(path)
-	if err != nil {
-		return 0, err
-	}
-
-	i := t.lookupInode(d.inode)
-	if i == nil {
-		return 0, os.ErrNotExist
-	}
-
-	if !checkPerm(i, 'r') {
-		return 0, os.ErrPermission
-	}
-	return d.inode, nil
-}
-
-func (t *TestFS) findDentry(path string) (*dentry, error) {
+func (t *TestFS) find(path string) (*inode, error) {
 	if path == "/" {
 		return &t.dirTree, nil
 	}
+	if path == "" || path == "." {
+		return t.cwd, nil
+	}
 
-	d, err := t.lookupPath(path)
+	terms, err := parsePath(path)
 	if err != nil {
 		return nil, err
 	}
 
-	i := t.lookupInode(d.inode)
-	if i == nil {
-		return nil, os.ErrNotExist
+	if path[0] == '/' {
+		return t.dirTree.lookup(terms)
 	}
-
-	if !checkPerm(i, 'r', 'x') {
-		return nil, os.ErrPermission
-	}
-	return d, nil
-}
-
-func (t *TestFS) create(dir *dentry, name string, perm os.FileMode) (inum, error) {
-	// Check permissions first
-	dirInode := t.lookupInode(dir.inode)
-	if dirInode == nil {
-		return 0, os.ErrNotExist
-	}
-
-	if !checkPerm(dirInode, 'w') {
-		return 0, os.ErrPermission
-	}
-
-	i := t.newInum()
-
-	err := dir.newDentry(i, name)
-	if err != nil {
-		return 0, err
-	}
-
-	t.newInode(i, Uid, Gid, perm)
-
-	return i, nil
-
+	return t.cwd.lookup(terms)
 }

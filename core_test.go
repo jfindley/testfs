@@ -1,22 +1,33 @@
 package testfs
 
 import (
+	"flag"
 	"os"
 	"strings"
 	"testing"
 )
 
-func TestParsePath(t *testing.T) {
-	fs := NewTestFS()
-	fs.dirTree.newDentry(2, "tmp")
-	fs.dirTree.children["tmp"].newDentry(3, "test")
+var fs *TestFS
 
-	terms, err := fs.parsePath("/")
+func TestMain(m *testing.M) {
+	flag.Parse()
+
+	fs = NewTestFS()
+	Uid = 0
+	Gid = 0
+
+	os.Exit(m.Run())
+}
+
+func TestParsePath(t *testing.T) {
+	fs.MkdirAll("/tmp/test", os.FileMode(0777)|os.ModeDir)
+
+	terms, err := parsePath("/")
 	if err != nil || terms != nil {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp")
+	terms, err = parsePath("/tmp")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -24,7 +35,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp/")
+	terms, err = parsePath("/tmp/")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -32,7 +43,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp/test")
+	terms, err = parsePath("/tmp/test")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -40,7 +51,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp/test//")
+	terms, err = parsePath("/tmp/test//")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -48,7 +59,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp/./test/")
+	terms, err = parsePath("/tmp/./test/")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -56,7 +67,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp/test/../test/")
+	terms, err = parsePath("/tmp/test/../test/")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -64,7 +75,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = fs.parsePath("/tmp/../../test/")
+	terms, err = parsePath("/tmp/../../test/")
 	if err != os.ErrNotExist {
 		t.Error("Parse failure")
 	}
@@ -74,77 +85,8 @@ func TestParsePath(t *testing.T) {
 func BenchmarkParsePath(b *testing.B) {
 	path := "/test/path/with/five/elements"
 
-	fs := NewTestFS()
-
 	for n := 0; n < b.N; n++ {
-		_, err := fs.parsePath(path)
-		if err != nil {
-			b.Error(err)
-		}
-	}
-}
-
-func TestLookupPath(t *testing.T) {
-	fs := NewTestFS()
-	fs.dirTree.newDentry(2, "tmp")
-	fs.dirTree.children["tmp"].newDentry(3, "test")
-
-	fs.newInode(2, Uid, Gid, os.FileMode(0777))
-	fs.newInode(3, Uid, Gid, os.FileMode(0777))
-
-	d, err := fs.lookupPath("/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d == nil {
-		t.Fatal("No error and no dentry")
-	}
-
-	if d.inode != 1 {
-		t.Error("Wrong root inode number")
-	}
-
-	d, err = fs.lookupPath("/tmp")
-	if err != nil {
-		t.Error(err)
-	}
-	if d.inode != 2 {
-		t.Error("Wrong inode number")
-	}
-
-	// /tmp is not a dir, make sure this fails
-	d, err = fs.lookupPath("/tmp/test")
-	if err != os.ErrInvalid || d != nil {
-		t.Error("Bad error status")
-	}
-
-	i := fs.lookupInode(2)
-	i.mode = os.FileMode(0777) | os.ModeDir
-	d, err = fs.lookupPath("/tmp/test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d == nil {
-		t.Fatal("No error and no dentry")
-	}
-
-	if d.inode != 3 {
-		t.Error("Wrong inode number")
-	}
-
-}
-
-func BenchmarkLookupPath(b *testing.B) {
-	path := strings.Repeat("/testpath", 50)
-	Uid = 0
-	fs := NewTestFS()
-	err := fs.MkdirAll(path, os.FileMode(0775))
-	if err != nil {
-		b.Error(err)
-	}
-
-	for n := 0; n < b.N; n++ {
-		_, err = fs.lookupPath(path)
+		_, err := parsePath(path)
 		if err != nil {
 			b.Error(err)
 		}
@@ -152,89 +94,107 @@ func BenchmarkLookupPath(b *testing.B) {
 }
 
 func TestCheckPerm(t *testing.T) {
-	fs := NewTestFS()
 
-	fs.newInode(2, Uid, 666, os.FileMode(0000))
-	fs.newInode(3, 666, Gid, os.FileMode(0000))
-	fs.newInode(4, 666, 666, os.FileMode(0000))
-	fs.newInode(5, Uid, 666, os.FileMode(0700))
-	fs.newInode(6, 666, Gid, os.FileMode(0070))
-	fs.newInode(7, 666, 666, os.FileMode(0007))
+	fs.dirTree.new("2", 100, 0, os.FileMode(0000))
+	fs.dirTree.new("3", 0, 200, os.FileMode(0000))
+	fs.dirTree.new("4", 0, 0, os.FileMode(0000))
+	fs.dirTree.new("5", 100, 0, os.FileMode(0700))
+	fs.dirTree.new("6", 0, 200, os.FileMode(0070))
+	fs.dirTree.new("7", 0, 0, os.FileMode(0007))
+
+	Uid = 100
+	Gid = 200
 
 	// Check failures
-	if i := fs.lookupInode(2); checkPerm(i, 'r') {
+	if i, _ := fs.find("/2"); checkPerm(i, 'r') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(2); checkPerm(i, 'w') {
+	if i, _ := fs.find("/2"); checkPerm(i, 'w') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(2); checkPerm(i, 'x') {
+	if i, _ := fs.find("/2"); checkPerm(i, 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(3); checkPerm(i, 'r') {
+	if i, _ := fs.find("/3"); checkPerm(i, 'r') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(3); checkPerm(i, 'w') {
+	if i, _ := fs.find("/3"); checkPerm(i, 'w') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(3); checkPerm(i, 'x') {
+	if i, _ := fs.find("/3"); checkPerm(i, 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(4); checkPerm(i, 'r') {
+	if i, _ := fs.find("/4"); checkPerm(i, 'r') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(4); checkPerm(i, 'w') {
+	if i, _ := fs.find("/4"); checkPerm(i, 'w') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(4); checkPerm(i, 'x') {
+	if i, _ := fs.find("/4"); checkPerm(i, 'x') {
 		t.Error("Permission check failed")
 	}
 
 	// Check success
-	if i := fs.lookupInode(5); !checkPerm(i, 'r', 'w', 'x') {
+	if i, _ := fs.find("/5"); !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(6); !checkPerm(i, 'r', 'w', 'x') {
+	if i, _ := fs.find("/6"); !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if i := fs.lookupInode(7); !checkPerm(i, 'r', 'w', 'x') {
+	if i, _ := fs.find("/7"); !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
+
+	Uid = 0
+	Gid = 0
 
 }
 
 func BenchmarkCheckPerm(b *testing.B) {
-	fs := NewTestFS()
-	fs.newInode(2, Uid, Gid, os.FileMode(0644))
+	err := fs.dirTree.new("2", Uid, Gid, os.FileMode(0644))
+	if err != nil {
+		b.Error(err)
+	}
 
 	for n := 0; n < b.N; n++ {
-		if i := fs.lookupInode(2); !checkPerm(i, 'r', 'w') {
+		if !checkPerm(fs.dirTree.children["2"], 'r', 'w') {
 			b.Error("Permission check failed")
 		}
 	}
 }
 
 func TestFind(t *testing.T) {
-	fs := NewTestFS()
-
-	_, err := fs.find("/tmp/test")
+	_, err := fs.find("/tmp/testfind")
 	if !os.IsNotExist(err) {
 		t.Error("Bad error status")
 	}
 
-	testInum := fs.newInum()
-	fs.dirTree.newDentry(testInum, "tmp")
-	fs.newInode(testInum, Uid, Gid, os.FileMode(0755)|os.ModeDir)
-	testInum = fs.newInum()
-	fs.dirTree.children["tmp"].newDentry(testInum, "test")
-	fs.newInode(testInum, Uid, Gid, os.FileMode(0755)|os.ModeDir)
-
-	in, err := fs.find("/tmp/test")
+	err = fs.MkdirAll("/tmp/testfind", os.FileMode(0755))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if fs.files[in].mode != os.FileMode(0755)|os.ModeDir {
-		t.Error("Bad inode permissions")
+	in, err := fs.find("/tmp/testfind")
+	if err != nil {
+		t.Error(err)
+	}
+	if in.name != "testfind" {
+		t.Error("Bad name")
+	}
+}
+
+func BenchmarkFind(b *testing.B) {
+	path := strings.Repeat("/testpath", 50)
+
+	err := fs.MkdirAll(path, os.FileMode(0775))
+	if err != nil {
+		b.Error(err)
+	}
+
+	for n := 0; n < b.N; n++ {
+		_, err = fs.find(path)
+		if err != nil {
+			b.Error(err)
+		}
 	}
 }

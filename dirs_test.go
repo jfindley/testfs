@@ -9,24 +9,18 @@ import (
 )
 
 func TestMkdir(t *testing.T) {
-	fs := NewTestFS()
-	Uid = 0
-
-	err := fs.Mkdir("/tmp", os.FileMode(0755))
+	err := fs.Mkdir("/testmkdir", os.FileMode(0755))
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = fs.lookupPath("/tmp")
+	_, err = fs.find("/testmkdir")
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func BenchmarkMkdir(b *testing.B) {
-	fs := NewTestFS()
-	Uid = 0
-
 	for n := 0; n < b.N; n++ {
 		err := fs.Mkdir("/"+strconv.Itoa(n), os.FileMode(0755))
 		if err != nil {
@@ -36,9 +30,6 @@ func BenchmarkMkdir(b *testing.B) {
 }
 
 func BenchmarkParallelMkdir(b *testing.B) {
-	fs := NewTestFS()
-	Uid = 0
-
 	b.RunParallel(func(pb *testing.PB) {
 
 		for pb.Next() {
@@ -52,8 +43,6 @@ func BenchmarkParallelMkdir(b *testing.B) {
 }
 
 func TestMkdirAll(t *testing.T) {
-	fs := NewTestFS()
-
 	err := fs.MkdirAll("/test/path/foo", os.FileMode(0755))
 	if err != nil {
 		t.Error(err)
@@ -66,9 +55,6 @@ func TestMkdirAll(t *testing.T) {
 }
 
 func BenchmarkMkdirAll(b *testing.B) {
-	fs := NewTestFS()
-	Uid = 0
-
 	path := strings.Repeat("/tmp", 4)
 
 	for n := 0; n < b.N; n++ {
@@ -80,9 +66,7 @@ func BenchmarkMkdirAll(b *testing.B) {
 }
 
 func TestChdir(t *testing.T) {
-	fs := NewTestFS()
-
-	err := fs.Chdir("/tmp")
+	err := fs.Chdir("/testchdir")
 	if !os.IsNotExist(err) {
 		t.Error("Bad error code")
 	}
@@ -90,16 +74,16 @@ func TestChdir(t *testing.T) {
 		t.Error("Wrong working dir")
 	}
 
-	err = fs.MkdirAll("/tmp/test", os.FileMode(0777))
+	err = fs.MkdirAll("/testchdir/test", os.FileMode(0777))
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = fs.Chdir("/tmp")
+	err = fs.Chdir("/testchdir")
 	if err != nil {
 		t.Error(err)
 	}
-	if fs.cwd.name != "tmp" {
+	if fs.cwd.name != "testchdir" {
 		t.Error("Wrong working dir")
 	}
 
@@ -113,26 +97,25 @@ func TestChdir(t *testing.T) {
 }
 
 func TestGetwd(t *testing.T) {
-	fs := NewTestFS()
 	dir, err := fs.Getwd()
 	if err != nil {
 		t.Error(err)
 	}
-	if dir != "/" {
+	if dir != fs.cwdPath {
 		t.Error("Bad WD")
 	}
 
-	err = fs.MkdirAll("/tmp/test", os.FileMode(0777))
+	err = fs.MkdirAll("/testgetwd/test", os.FileMode(0777))
 	if err != nil {
 		t.Error(err)
 	}
 
-	fs.Chdir("/tmp/test")
+	fs.Chdir("/testgetwd/test")
 	dir, err = fs.Getwd()
 	if err != nil {
 		t.Error(err)
 	}
-	if dir != "/tmp/test" {
+	if dir != "/testgetwd/test" {
 		t.Error("Bad WD")
 	}
 }
