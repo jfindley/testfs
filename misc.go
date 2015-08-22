@@ -92,18 +92,6 @@ func (t *TestFS) Readlink(name string) (string, error) {
 
 }
 
-func unlink(in *inode) {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-
-	if in.linkCount <= 1 {
-		in = nil
-	} else {
-		in.linkCount--
-	}
-	return
-}
-
 func (t *TestFS) Remove(name string) error {
 
 	d, err := t.find(path.Dir(name))
@@ -133,7 +121,31 @@ func (t *TestFS) Remove(name string) error {
 
 }
 
-func (t *TestFS) RemoveAll(path string) error {
+func (t *TestFS) RemoveAll(name string) error {
+
+	d, err := t.find(path.Dir(name))
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(d, 'r', 'w', 'x') {
+		return os.ErrPermission
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	f, err := d.lookup([]string{path.Base(name)})
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(f, 'w') {
+		return os.ErrPermission
+	}
+
+	unlinkall(f)
+	delete(d.children, f.name)
 	return nil
 }
 
@@ -151,4 +163,31 @@ func (t *TestFS) Lstat(path string) (os.FileInfo, error) {
 
 func (t *TestFS) Stat(path string) (os.FileInfo, error) {
 	return nil, nil
+}
+
+func unlink(in *inode) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	in.linkCount--
+
+	if in.linkCount == 0 {
+		in = nil
+	}
+	return
+}
+
+func unlinkall(in *inode) {
+	in.mu.Lock()
+	if in.mode&os.ModeDir == 0 {
+		in.mu.Unlock()
+		unlink(in)
+		return
+	}
+	for _, child := range in.children {
+		unlinkall(child)
+	}
+	in.mu.Unlock()
+	unlink(in)
+	return
 }

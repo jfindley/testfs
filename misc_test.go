@@ -6,60 +6,54 @@ import (
 )
 
 func TestChmod(t *testing.T) {
-	fs := NewTestFS()
-	fs.dirTree.new("test", Uid, Gid, os.FileMode(0755))
-
-	err := fs.Chmod("/test", os.FileMode(0644))
+	fs.dirTree.new("testchmod", Uid, Gid, os.FileMode(0755))
+	err := fs.Chmod("/testchmod", os.FileMode(0644))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if fs.dirTree.children["test"].mode != os.FileMode(0644) {
-		t.Error("Bad file mode", fs.dirTree.children["test"].mode)
+	if fs.dirTree.children["testchmod"].mode != os.FileMode(0644) {
+		t.Error("Bad file mode", fs.dirTree.children["testchmod"].mode)
 	}
 
 	// Test other attributes are preserved
-	fs.dirTree.children["test"].mode = os.FileMode(0755) | os.ModeDir
+	fs.dirTree.children["testchmod"].mode = os.FileMode(0755) | os.ModeDir
 
-	err = fs.Chmod("/test", os.FileMode(0700))
+	err = fs.Chmod("/testchmod", os.FileMode(0700))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if fs.dirTree.children["test"].mode != os.FileMode(0700)|os.ModeDir {
+	if fs.dirTree.children["testchmod"].mode != os.FileMode(0700)|os.ModeDir {
 		t.Error("Bad file mode")
 	}
 
-	fs.dirTree.children["test"].mode = os.FileMode(0755) | os.ModeSocket | os.ModeSetuid
+	fs.dirTree.children["testchmod"].mode = os.FileMode(0755) | os.ModeSocket | os.ModeSetuid
 
-	err = fs.Chmod("/test", os.FileMode(0700))
+	err = fs.Chmod("/testchmod", os.FileMode(0700))
 	if err != nil {
 		t.Error(err)
 	}
 
-	if fs.dirTree.children["test"].mode != os.FileMode(0700)|os.ModeSocket {
+	if fs.dirTree.children["testchmod"].mode != os.FileMode(0700)|os.ModeSocket {
 		t.Error("Bad file mode")
 	}
 }
 
 func TestChown(t *testing.T) {
-	fs := NewTestFS()
-	fs.dirTree.new("test", Uid, Gid, os.FileMode(0644))
-
-	err := fs.Chown("/test", 666, 777)
+	fs.dirTree.new("testchown", Uid, Gid, os.FileMode(0644))
+	err := fs.Chown("/testchown", 666, 777)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if fs.dirTree.children["test"].uid != 666 || fs.dirTree.children["test"].gid != 777 {
+	if fs.dirTree.children["testchown"].uid != 666 || fs.dirTree.children["testchown"].gid != 777 {
 		t.Error("Bad ownership")
 	}
 }
 
 func TestLink(t *testing.T) {
-	fs := NewTestFS()
 	fs.dirTree.new("src", Uid, Gid, os.FileMode(0644))
-
 	err := fs.Link("/src", "/dst")
 	if err != nil {
 		t.Error(err)
@@ -85,16 +79,15 @@ func TestLink(t *testing.T) {
 }
 
 func TestReadlink(t *testing.T) {
-	fs := NewTestFS()
 
-	err := fs.dirTree.new("dst", Uid, Gid, os.FileMode(0644)|os.ModeSymlink)
+	err := fs.dirTree.new("testreadlink", Uid, Gid, os.FileMode(0644)|os.ModeSymlink)
 	if err != nil {
 		t.Error(err)
 	}
 
-	fs.dirTree.children["dst"].relName = "/src"
+	fs.dirTree.children["testreadlink"].relName = "/src"
 
-	res, err := fs.Readlink("/dst")
+	res, err := fs.Readlink("/testreadlink")
 	if err != nil {
 		t.Error(err)
 	}
@@ -105,29 +98,56 @@ func TestReadlink(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	fs := NewTestFS()
-	Uid = 0
-
-	err := fs.Mkdir("test", os.FileMode(0500))
+	err := fs.Mkdir("/testrm", os.FileMode(0500))
 	if err != nil {
 		t.Error(err)
 	}
 
+	ref := fs.dirTree.children["testrm"]
+	ref.linkCount = 2
+
 	Uid = uint16(os.Getuid())
 
-	err = fs.Remove("/test")
+	err = fs.Remove("/testrm")
 	if !os.IsPermission(err) {
 		t.Error(err)
 	}
 
 	Uid = 0
 
-	err = fs.Remove("test")
+	err = fs.Remove("/testrm")
 	if err != nil {
 		t.Error(err)
 	}
+
+	if ref.linkCount != 1 {
+		t.Error("Bad link count")
+	}
+
+	_, err = fs.find("/testrm")
+	if !os.IsNotExist(err) {
+		t.Error("Dir not removed")
+	}
 }
 
-// func TestRemoveAll(t *testing.T) {
+func TestRemoveAll(t *testing.T) {
+	err := fs.MkdirAll("/testrmall/first/path", os.FileMode(0700))
+	if err != nil {
+		t.Error(err)
+	}
+	err = fs.dirTree.children["testrmall"].new("second", Uid, Gid, os.FileMode(0600))
+	if err != nil {
+		t.Error(err)
+	}
 
-// }
+	err = fs.RemoveAll("/testrmall")
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = fs.find("/testrmall")
+	if !os.IsNotExist(err) {
+		t.Error("Dir not removed")
+	}
+
+}
