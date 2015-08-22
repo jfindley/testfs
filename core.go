@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 const sep = "/"
@@ -29,6 +30,7 @@ type inode struct {
 	linkCount uint16
 	rel       *inode
 	relName   string
+	mtime     time.Time
 	data      []byte
 	children  map[string]*inode
 	mu        *sync.Mutex
@@ -45,6 +47,7 @@ func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 		uid:       uid,
 		gid:       gid,
 		mode:      mode,
+		mtime:     time.Now(),
 		linkCount: 1,
 	}
 	if mode&os.ModeDir == os.ModeDir {
@@ -56,6 +59,7 @@ func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 		return os.ErrExist
 	}
 	i.children[name] = &entry
+	i.mtime = time.Now()
 	return nil
 }
 

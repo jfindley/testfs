@@ -106,7 +106,7 @@ func TestRemove(t *testing.T) {
 	ref := fs.dirTree.children["testrm"]
 	ref.linkCount = 2
 
-	Uid = uint16(os.Getuid())
+	Uid = 20
 
 	err = fs.Remove("/testrm")
 	if !os.IsPermission(err) {

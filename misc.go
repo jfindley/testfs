@@ -3,6 +3,7 @@ package testfs
 import (
 	"os"
 	"path"
+	"time"
 )
 
 func (t *TestFS) Chmod(name string, mode os.FileMode) error {
@@ -76,6 +77,7 @@ func (t *TestFS) Link(oldname, newname string) error {
 	}
 
 	dir.children[newFile] = tar
+	dir.mtime = time.Now()
 	tar.linkCount++
 
 	return nil
@@ -96,64 +98,12 @@ func (t *TestFS) Readlink(name string) (string, error) {
 }
 
 func (t *TestFS) Remove(name string) error {
-
-	dir, file := path.Split(name)
-
-	d, err := t.find(dir)
-	if err != nil {
-		return err
-	}
-
-	if !checkPerm(d, 'r', 'w', 'x') {
-		return os.ErrPermission
-	}
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	f, err := d.lookup([]string{file})
-	if err != nil {
-		return err
-	}
-
-	if !checkPerm(f, 'w') {
-		return os.ErrPermission
-	}
-
-	unlink(f)
-	delete(d.children, file)
-	return nil
+	return t.rmHelper(name, unlink)
 
 }
 
 func (t *TestFS) RemoveAll(name string) error {
-
-	dir, file := path.Split(name)
-
-	d, err := t.find(dir)
-	if err != nil {
-		return err
-	}
-
-	if !checkPerm(d, 'r', 'w', 'x') {
-		return os.ErrPermission
-	}
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	f, err := d.lookup([]string{file})
-	if err != nil {
-		return err
-	}
-
-	if !checkPerm(f, 'w') {
-		return os.ErrPermission
-	}
-
-	unlinkall(f)
-	delete(d.children, file)
-	return nil
+	return t.rmHelper(name, unlinkall)
 }
 
 func (t *TestFS) Rename(oldpath, newpath string) error {
@@ -187,9 +137,13 @@ func (t *TestFS) Rename(oldpath, newpath string) error {
 		return os.ErrPermission
 	}
 
+	srcDir.mtime = time.Now()
+
 	if srcDir != dstDir {
 		dstDir.mu.Lock()
 		defer dstDir.mu.Unlock()
+
+		dstDir.mtime = time.Now()
 	}
 
 	_, err = dstDir.lookup([]string{newFile})
@@ -234,6 +188,8 @@ func (t *TestFS) Symlink(oldname, newname string) error {
 	srcDir.children[newFile].rel = dst
 	srcDir.children[newFile].relName = oldname
 
+	srcDir.mtime = time.Now()
+
 	return nil
 }
 
@@ -249,6 +205,8 @@ func unlink(in *inode) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
+	in.mtime = time.Now()
+
 	in.linkCount--
 
 	if in.linkCount == 0 {
@@ -259,15 +217,50 @@ func unlink(in *inode) {
 
 func unlinkall(in *inode) {
 	in.mu.Lock()
+
+	in.mtime = time.Now()
+
 	if in.mode&os.ModeDir == 0 {
 		in.mu.Unlock()
 		unlink(in)
 		return
 	}
+
 	for _, child := range in.children {
 		unlinkall(child)
 	}
+
 	in.mu.Unlock()
 	unlink(in)
 	return
+}
+
+func (t *TestFS) rmHelper(name string, unlinkfunc func(*inode)) error {
+	dir, file := path.Split(name)
+
+	d, err := t.find(dir)
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(d, 'r', 'w', 'x') {
+		return os.ErrPermission
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	f, err := d.lookup([]string{file})
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(f, 'w') {
+		return os.ErrPermission
+	}
+
+	unlinkfunc(f)
+	delete(d.children, file)
+	d.mtime = time.Now()
+	return nil
 }
