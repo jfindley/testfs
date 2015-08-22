@@ -14,7 +14,7 @@ func (t *TestFS) Mkdir(name string, perm os.FileMode) error {
 		return err
 	}
 
-	if dir.mode&os.ModeDir == 0 {
+	if !dir.IsDir() {
 		return os.ErrInvalid
 	}
 
@@ -64,7 +64,7 @@ func (i *inode) mkdirAll(terms []string, perm os.FileMode) error {
 
 	case os.IsExist(err):
 		// If the child is not a directory, fail
-		if i.children[terms[0]].mode&os.ModeDir == 0 {
+		if !i.children[terms[0]].IsDir() {
 			return err
 		}
 		// If it is a directory, just continue
@@ -85,7 +85,7 @@ func (t *TestFS) Chdir(dir string) error {
 		return err
 	}
 
-	if d.mode&os.ModeDir == 0 {
+	if !d.IsDir() {
 		return os.ErrInvalid
 	}
 

@@ -50,7 +50,7 @@ func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 		mtime:     time.Now(),
 		linkCount: 1,
 	}
-	if mode&os.ModeDir == os.ModeDir {
+	if i.IsDir() {
 		entry.children = make(map[string]*inode)
 	}
 	i.mu.Lock()
@@ -61,6 +61,34 @@ func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 	i.children[name] = &entry
 	i.mtime = time.Now()
 	return nil
+}
+
+// Methods to satisfy os.FileInfo
+func (i *inode) Name() string {
+	return i.name
+}
+
+func (i *inode) Size() int64 {
+	return int64(len(i.data))
+}
+
+func (i *inode) Mode() os.FileMode {
+	return i.mode
+}
+
+func (i *inode) ModTime() time.Time {
+	return i.mtime
+}
+
+func (i *inode) IsDir() bool {
+	if i.mode&os.ModeDir == 0 {
+		return false
+	}
+	return true
+}
+
+func (i *inode) Sys() interface{} {
+	return i
 }
 
 // TestFS implements an in-memory filesystem.  We use maps rather than
@@ -137,7 +165,7 @@ func (i *inode) lookup(terms []string) (*inode, error) {
 		}
 
 		// Make sure this is actually a directory before ascending the tree
-		if this.mode&os.ModeDir == 0 {
+		if !this.IsDir() {
 			return nil, os.ErrInvalid
 		}
 

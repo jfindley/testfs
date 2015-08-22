@@ -60,7 +60,7 @@ func (t *TestFS) Link(oldname, newname string) error {
 	}
 
 	// No hardlinks to directories
-	if tar.mode&os.ModeDir == os.ModeDir {
+	if tar.IsDir() {
 		return os.ErrInvalid
 	}
 
@@ -220,7 +220,7 @@ func unlinkall(in *inode) {
 
 	in.mtime = time.Now()
 
-	if in.mode&os.ModeDir == 0 {
+	if !in.IsDir() {
 		in.mu.Unlock()
 		unlink(in)
 		return
