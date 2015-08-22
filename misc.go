@@ -50,6 +50,9 @@ func (t *TestFS) Chown(name string, uid, gid int) error {
 }
 
 func (t *TestFS) Link(oldname, newname string) error {
+
+	newDir, newFile := path.Split(newname)
+
 	tar, err := t.find(oldname)
 	if err != nil {
 		return err
@@ -60,7 +63,7 @@ func (t *TestFS) Link(oldname, newname string) error {
 		return os.ErrInvalid
 	}
 
-	dir, err := t.find(path.Dir(newname))
+	dir, err := t.find(newDir)
 	if err != nil {
 		return err
 	}
@@ -68,11 +71,11 @@ func (t *TestFS) Link(oldname, newname string) error {
 	dir.mu.Lock()
 	defer dir.mu.Unlock()
 
-	if _, ok := dir.children[path.Base(newname)]; ok {
+	if _, ok := dir.children[newFile]; ok {
 		return os.ErrExist
 	}
 
-	dir.children[path.Base(newname)] = tar
+	dir.children[newFile] = tar
 	tar.linkCount++
 
 	return nil
@@ -94,7 +97,9 @@ func (t *TestFS) Readlink(name string) (string, error) {
 
 func (t *TestFS) Remove(name string) error {
 
-	d, err := t.find(path.Dir(name))
+	dir, file := path.Split(name)
+
+	d, err := t.find(dir)
 	if err != nil {
 		return err
 	}
@@ -106,7 +111,7 @@ func (t *TestFS) Remove(name string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	f, err := d.lookup([]string{path.Base(name)})
+	f, err := d.lookup([]string{file})
 	if err != nil {
 		return err
 	}
@@ -116,14 +121,16 @@ func (t *TestFS) Remove(name string) error {
 	}
 
 	unlink(f)
-	delete(d.children, f.name)
+	delete(d.children, file)
 	return nil
 
 }
 
 func (t *TestFS) RemoveAll(name string) error {
 
-	d, err := t.find(path.Dir(name))
+	dir, file := path.Split(name)
+
+	d, err := t.find(dir)
 	if err != nil {
 		return err
 	}
@@ -135,7 +142,7 @@ func (t *TestFS) RemoveAll(name string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	f, err := d.lookup([]string{path.Base(name)})
+	f, err := d.lookup([]string{file})
 	if err != nil {
 		return err
 	}
@@ -145,13 +152,16 @@ func (t *TestFS) RemoveAll(name string) error {
 	}
 
 	unlinkall(f)
-	delete(d.children, f.name)
+	delete(d.children, file)
 	return nil
 }
 
 func (t *TestFS) Rename(oldpath, newpath string) error {
 
-	srcDir, err := t.find(path.Dir(oldpath))
+	newDir, newFile := path.Split(newpath)
+	oldDir, oldFile := path.Split(oldpath)
+
+	srcDir, err := t.find(oldDir)
 	if err != nil {
 		return err
 	}
@@ -163,12 +173,12 @@ func (t *TestFS) Rename(oldpath, newpath string) error {
 	srcDir.mu.Lock()
 	defer srcDir.mu.Unlock()
 
-	src, err := srcDir.lookup([]string{path.Base(oldpath)})
+	src, err := srcDir.lookup([]string{oldFile})
 	if err != nil {
 		return err
 	}
 
-	dstDir, err := t.find(path.Dir(newpath))
+	dstDir, err := t.find(newDir)
 	if err != nil {
 		return err
 	}
@@ -182,18 +192,48 @@ func (t *TestFS) Rename(oldpath, newpath string) error {
 		defer dstDir.mu.Unlock()
 	}
 
-	_, err = dstDir.lookup([]string{path.Base(newpath)})
+	_, err = dstDir.lookup([]string{newFile})
 	if !os.IsNotExist(err) {
 		return os.ErrExist
 	}
 
-	delete(srcDir.children, path.Dir(oldpath))
-	dstDir.children[path.Base(newpath)] = src
+	dstDir.children[newFile] = src
+	delete(srcDir.children, oldFile)
 
 	return nil
 }
 
 func (t *TestFS) Symlink(oldname, newname string) error {
+
+	newDir, newFile := path.Split(newname)
+
+	dst, err := t.find(oldname)
+	if err != nil {
+		return err
+	}
+
+	srcDir, err := t.find(path.Dir(newname))
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(srcDir, 'r', 'w', 'x') {
+		return os.ErrPermission
+	}
+
+	_, err = srcDir.lookup([]string{newDir})
+	if !os.IsNotExist(err) {
+		return os.ErrExist
+	}
+
+	err = srcDir.new(newFile, Uid, Gid, os.FileMode(0777)|os.ModeSymlink)
+	if err != nil {
+		return err
+	}
+
+	srcDir.children[newFile].rel = dst
+	srcDir.children[newFile].relName = oldname
+
 	return nil
 }
 

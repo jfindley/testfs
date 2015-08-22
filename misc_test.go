@@ -168,7 +168,28 @@ func TestRename(t *testing.T) {
 	}
 
 	_, err = fs.find("/testrename")
-	if os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		t.Error("Old file still present")
+	}
+}
+
+func TestSymlink(t *testing.T) {
+	err := fs.Mkdir("/testsymlink", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Symlink("/testsymlink", "/testlns")
+	if err != nil {
+		t.Error(err)
+	}
+
+	ln, err := fs.find("/testlns")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if ln.relName != "/testsymlink" || ln.rel != fs.dirTree.children["testsymlink"] || ln.mode&os.ModeSymlink == 0 {
+		t.Error("Bad link data")
 	}
 }
