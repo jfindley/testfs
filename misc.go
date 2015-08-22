@@ -150,6 +150,46 @@ func (t *TestFS) RemoveAll(name string) error {
 }
 
 func (t *TestFS) Rename(oldpath, newpath string) error {
+
+	srcDir, err := t.find(path.Dir(oldpath))
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(srcDir, 'r', 'w', 'x') {
+		return os.ErrPermission
+	}
+
+	srcDir.mu.Lock()
+	defer srcDir.mu.Unlock()
+
+	src, err := srcDir.lookup([]string{path.Base(oldpath)})
+	if err != nil {
+		return err
+	}
+
+	dstDir, err := t.find(path.Dir(newpath))
+	if err != nil {
+		return err
+	}
+
+	if !checkPerm(dstDir, 'r', 'w', 'x') {
+		return os.ErrPermission
+	}
+
+	if srcDir != dstDir {
+		dstDir.mu.Lock()
+		defer dstDir.mu.Unlock()
+	}
+
+	_, err = dstDir.lookup([]string{path.Base(newpath)})
+	if !os.IsNotExist(err) {
+		return os.ErrExist
+	}
+
+	delete(srcDir.children, path.Dir(oldpath))
+	dstDir.children[path.Base(newpath)] = src
+
 	return nil
 }
 

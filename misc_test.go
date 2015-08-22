@@ -149,5 +149,26 @@ func TestRemoveAll(t *testing.T) {
 	if !os.IsNotExist(err) {
 		t.Error("Dir not removed")
 	}
+}
 
+func TestRename(t *testing.T) {
+	err := fs.Mkdir("/testrename", os.FileMode(0700))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Rename("/testrename", "/testmv")
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = fs.find("/testmv")
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = fs.find("/testrename")
+	if os.IsNotExist(err) {
+		t.Error("Old file still present")
+	}
 }
