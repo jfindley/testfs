@@ -198,7 +198,7 @@ func (t *TestFS) Lstat(path string) (os.FileInfo, error) {
 }
 
 func (t *TestFS) Stat(path string) (os.FileInfo, error) {
-	return nil, nil
+	return t.find(path)
 }
 
 func unlink(in *inode) {

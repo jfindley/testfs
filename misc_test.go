@@ -193,3 +193,19 @@ func TestSymlink(t *testing.T) {
 		t.Error("Bad link data")
 	}
 }
+
+func TestStat(t *testing.T) {
+	err := fs.MkdirAll("/teststat/test", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	fi, err := fs.Stat("/teststat/test")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if fi.Name() != "test" {
+		t.Error("Bad name")
+	}
+}
