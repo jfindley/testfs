@@ -86,6 +86,7 @@ func TestReadlink(t *testing.T) {
 	}
 
 	fs.dirTree.children["testreadlink"].relName = "/src"
+	fs.dirTree.children["testreadlink"].rel = new(inode)
 
 	res, err := fs.Readlink("/testreadlink")
 	if err != nil {
@@ -184,9 +185,9 @@ func TestSymlink(t *testing.T) {
 		t.Error(err)
 	}
 
-	ln, err := fs.find("/testlns")
-	if err != nil {
-		t.Error(err)
+	ln, ok := fs.dirTree.children["testlns"]
+	if !ok {
+		t.Fatal("Internal test error")
 	}
 
 	if ln.relName != "/testsymlink" || ln.rel != fs.dirTree.children["testsymlink"] || ln.mode&os.ModeSymlink == 0 {
@@ -207,5 +208,46 @@ func TestStat(t *testing.T) {
 
 	if fi.Name() != "test" {
 		t.Error("Bad name")
+	}
+
+	err = fs.Symlink("/teststat/test", "/teststat/link")
+
+	fi, err = fs.Stat("/teststat/link")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if fi.Name() != "test" {
+		t.Error("Bad name")
+	}
+}
+
+func TestLstat(t *testing.T) {
+	err := fs.MkdirAll("/testlstat/test", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Symlink("/testlstat/test", "/testlstat/link")
+	if err != nil {
+		t.Error(err)
+	}
+
+	fi, err := fs.Lstat("/testlstat/link")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if fi.Name() != "link" {
+		t.Error("Bad name")
+	}
+
+	in, ok := fi.Sys().(*inode)
+	if !ok {
+		t.Fatal("Bad type")
+	}
+
+	if in.rel.name != "test" {
+		t.Error("Bad rel name")
 	}
 }

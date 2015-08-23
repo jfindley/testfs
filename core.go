@@ -152,7 +152,20 @@ func parsePath(path string) ([]string, error) {
 
 func (i *inode) lookup(terms []string) (*inode, error) {
 
+	if len(terms) == 0 {
+		return i, nil
+	}
+
+	if !i.IsDir() {
+		return nil, os.ErrInvalid
+	}
+
 	if this, ok := i.children[terms[0]]; ok {
+
+		// Follow symlinks
+		if this.mode&os.ModeSymlink == os.ModeSymlink {
+			return this.rel.lookup(terms[1:])
+		}
 
 		// If we're at the end of the path, just return it
 		if len(terms) == 1 {
@@ -164,16 +177,28 @@ func (i *inode) lookup(terms []string) (*inode, error) {
 			return nil, os.ErrPermission
 		}
 
-		// Make sure this is actually a directory before ascending the tree
-		if !this.IsDir() {
-			return nil, os.ErrInvalid
-		}
-
 		return this.lookup(terms[1:])
 
 	}
 
 	return nil, os.ErrNotExist
+}
+
+func (i *inode) lookupSymlink(name string) (*inode, error) {
+	if !i.IsDir() {
+		return nil, os.ErrInvalid
+	}
+
+	l, ok := i.children[name]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+
+	if l.mode&os.ModeSymlink == 0 || l.relName == "" || l.rel == nil {
+		return l, os.ErrInvalid
+	}
+
+	return l, nil
 }
 
 func checkPerm(i *inode, perms ...rune) bool {

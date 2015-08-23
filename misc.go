@@ -84,16 +84,16 @@ func (t *TestFS) Link(oldname, newname string) error {
 }
 
 func (t *TestFS) Readlink(name string) (string, error) {
-	f, err := t.find(name)
+	dir, file := path.Split(name)
+
+	d, err := t.find(dir)
 	if err != nil {
 		return "", err
 	}
 
-	if f.mode&os.ModeSymlink == 0 || f.relName == "" {
-		return "", os.ErrInvalid
-	}
+	f, err := d.lookupSymlink(file)
 
-	return f.relName, nil
+	return f.relName, err
 
 }
 
@@ -193,8 +193,15 @@ func (t *TestFS) Symlink(oldname, newname string) error {
 	return nil
 }
 
-func (t *TestFS) Lstat(path string) (os.FileInfo, error) {
-	return nil, nil
+func (t *TestFS) Lstat(name string) (os.FileInfo, error) {
+	dir, file := path.Split(name)
+
+	d, err := t.find(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.lookupSymlink(file)
 }
 
 func (t *TestFS) Stat(path string) (os.FileInfo, error) {
