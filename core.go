@@ -41,12 +41,12 @@ type inode struct {
 func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	return i.newSkipLock()
+	return i.newSkipLock(name, uid, gid, mode)
 }
 
 // Unsafe.  This creates a new inode without locking.  Should only be used
 // if the calling function is locking seperately.
-func (i *inode) newSkipLock() error {
+func (i *inode) newSkipLock(name string, uid, gid uint16, mode os.FileMode) error {
 	if !checkPerm(i, 'w', 'x') {
 		return os.ErrPermission
 	}
@@ -63,8 +63,6 @@ func (i *inode) newSkipLock() error {
 	if i.IsDir() {
 		entry.children = make(map[string]*inode)
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	if _, ok := i.children[name]; ok {
 		return os.ErrExist
 	}
