@@ -3,8 +3,8 @@ package testfs
 import (
 	"os"
 	"path"
+	"sync"
 	"time"
-	"unsafe"
 )
 
 func (t *TestFS) Truncate(name string, size int64) error {
@@ -47,11 +47,15 @@ func (t *TestFS) Create(name string) (File, error) {
 		return nil, err
 	}
 
-	return d.children[file], nil
+	return newFd(d.children[file]), nil
 }
 
 func (t *TestFS) Open(name string) (file File, err error) {
-	return nil, nil
+	in, err := fs.find(name)
+	if err != nil {
+		return nil, err
+	}
+	return newFd(in), nil
 }
 
 func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (file File, err error) {
@@ -86,67 +90,101 @@ func (i *inode) Sys() interface{} {
 	return i
 }
 
+// fd is a thin layer over an inode that represents an open file.
+// Most of its purpose is to simulate a concept of an open file.
+type fd struct {
+	mode  os.FileMode
+	id    uintptr
+	inode *inode
+}
+
+// fd counter to generate unique fd numbers.
+type fdCtr struct {
+	sync.Mutex
+	ctr uintptr
+}
+
+// next returns the next fd number.
+func (f *fdCtr) next() uintptr {
+	f.Lock()
+	defer f.Unlock()
+	f.ctr++
+	return f.ctr
+}
+
+// Create a new fd
+func newFd(i *inode) *fd {
+	f := new(fd)
+	f.inode = i
+	f.id = fdNum.next()
+	return f
+}
+
 // Methods to implement File
-func (i *inode) Chdir() error {
+func (f *fd) Chdir() error {
 	return nil
 }
 
-func (i *inode) Chmod(mode os.FileMode) error {
+func (f *fd) Chmod(mode os.FileMode) error {
 	return nil
 }
 
-func (i *inode) Chown(uid, gid int) error {
+func (f *fd) Chown(uid, gid int) error {
 	return nil
 }
 
-func (i *inode) Close() error {
+func (f *fd) Close() error {
 	return nil
 }
 
-func (i *inode) Fd() uintptr {
-	return uintptr(unsafe.Pointer(i))
+func (f *fd) Fd() uintptr {
+	return f.id
 }
 
-func (i *inode) Read(b []byte) (n int, err error) {
+func (f *fd) Name() string {
+	return f.inode.name
+}
+
+func (f *fd) Read(b []byte) (n int, err error) {
 	return
 }
 
-func (i *inode) ReadAt(b []byte, off int64) (n int, err error) {
+func (f *fd) ReadAt(b []byte, off int64) (n int, err error) {
 	return
 }
 
-func (i *inode) Readdir(n int) (fi []os.FileInfo, err error) {
+func (f *fd) Readdir(n int) (fi []os.FileInfo, err error) {
 	return
 }
 
-func (i *inode) Readdirnames(n int) (names []string, err error) {
+func (f *fd) Readdirnames(n int) (names []string, err error) {
 	return
 }
 
-func (i *inode) Seek(offset int64, whence int) (ret int64, err error) {
+func (f *fd) Seek(offset int64, whence int) (ret int64, err error) {
 	return
 }
 
-func (i *inode) Stat() (fi os.FileInfo, err error) {
+func (f *fd) Stat() (fi os.FileInfo, err error) {
 	return
 }
 
-func (i *inode) Sync() (err error) {
+func (f *fd) Sync() (err error) {
 	return
 }
 
-func (i *inode) Truncate(size int64) error {
+func (f *fd) Truncate(size int64) error {
 	return nil
 }
 
-func (i *inode) Write(b []byte) (n int, err error) {
+func (f *fd) Write(b []byte) (n int, err error) {
 	return
 }
 
-func (i *inode) WriteAt(b []byte, off int64) (n int, err error) {
+func (f *fd) WriteAt(b []byte, off int64) (n int, err error) {
 	return
 }
 
-func (i *inode) WriteString(s string) (ret int, err error) {
+func (f *fd) WriteString(s string) (ret int, err error) {
 	return
 }
