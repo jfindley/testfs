@@ -107,42 +107,63 @@ func TestCheckPerm(t *testing.T) {
 	Gid = 200
 
 	// Check failures
-	if i, _ := fs.find("/2"); checkPerm(i, 'r') {
-		t.Error("Permission check failed")
+	i, err := fs.find("/2")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/2"); checkPerm(i, 'w') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/2")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/2"); checkPerm(i, 'x') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/2")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/3"); checkPerm(i, 'r') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/3")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/3"); checkPerm(i, 'w') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/3")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/3"); checkPerm(i, 'x') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/3")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/4"); checkPerm(i, 'r') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/4")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/4"); checkPerm(i, 'w') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/4")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
-	if i, _ := fs.find("/4"); checkPerm(i, 'x') {
-		t.Error("Permission check failed")
+	i, err = fs.find("/4")
+	if !os.IsPermission(err) {
+		t.Error(err)
 	}
 
 	// Check success
-	if i, _ := fs.find("/5"); !checkPerm(i, 'r', 'w', 'x') {
+	i, err = fs.find("/5")
+	if err != nil {
+		t.Error(err)
+	}
+	if !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if i, _ := fs.find("/6"); !checkPerm(i, 'r', 'w', 'x') {
+	i, err = fs.find("/6")
+	if err != nil {
+		t.Error(err)
+	}
+	if !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
-	if i, _ := fs.find("/7"); !checkPerm(i, 'r', 'w', 'x') {
+	i, err = fs.find("/7")
+	if err != nil {
+		t.Error(err)
+	}
+	if !checkPerm(i, 'r', 'w', 'x') {
 		t.Error("Permission check failed")
 	}
 

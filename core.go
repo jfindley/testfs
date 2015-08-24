@@ -20,7 +20,8 @@ func init() {
 }
 
 // inode represents an entity in the filesystem.  Children are represented as
-// pointers to allow us to simulate hardlinks.
+// pointers to allow us to simulate hardlinks.  This is not entirely like a POSIX
+// inode, but is named as this to clarify that it can refer to any sort of FS object.
 type inode struct {
 	name      string
 	uid       uint16
@@ -36,7 +37,16 @@ type inode struct {
 	mu        *sync.Mutex
 }
 
+// Create a new inode as a child of this one
 func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.newSkipLock()
+}
+
+// Unsafe.  This creates a new inode without locking.  Should only be used
+// if the calling function is locking seperately.
+func (i *inode) newSkipLock() error {
 	if !checkPerm(i, 'w', 'x') {
 		return os.ErrPermission
 	}
@@ -61,34 +71,7 @@ func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 	i.children[name] = &entry
 	i.mtime = time.Now()
 	return nil
-}
 
-// Methods to satisfy os.FileInfo
-func (i *inode) Name() string {
-	return i.name
-}
-
-func (i *inode) Size() int64 {
-	return int64(len(i.data))
-}
-
-func (i *inode) Mode() os.FileMode {
-	return i.mode
-}
-
-func (i *inode) ModTime() time.Time {
-	return i.mtime
-}
-
-func (i *inode) IsDir() bool {
-	if i.mode&os.ModeDir == 0 {
-		return false
-	}
-	return true
-}
-
-func (i *inode) Sys() interface{} {
-	return i
 }
 
 // TestFS implements an in-memory filesystem.  We use maps rather than
@@ -99,6 +82,8 @@ type TestFS struct {
 	cwdPath string
 }
 
+// Creates and initialises a new TestFS filesystem.  Creating a TestFS
+// filesystem any other way is not supported.
 func NewTestFS() *TestFS {
 	t := new(TestFS)
 	t.dirTree.children = make(map[string]*inode)
@@ -114,6 +99,7 @@ func NewTestFS() *TestFS {
 	return t
 }
 
+// Split a filesystem path into elements.
 func parsePath(path string) ([]string, error) {
 	if path == sep {
 		return nil, nil
@@ -131,6 +117,9 @@ func parsePath(path string) ([]string, error) {
 
 		switch elems[i] {
 
+		// We parse out the . and .. paths rather than
+		// create them on every Mkdir().  This substantially
+		// reduces hardlink complexity.
 		case "", ".":
 			continue
 
@@ -150,6 +139,7 @@ func parsePath(path string) ([]string, error) {
 	return terms[:len(terms)], nil
 }
 
+// Look up child inodes, recursively if there is more than one term.
 func (i *inode) lookup(terms []string) (*inode, error) {
 
 	if len(terms) == 0 {
@@ -167,8 +157,13 @@ func (i *inode) lookup(terms []string) (*inode, error) {
 			return this.rel.lookup(terms[1:])
 		}
 
-		// If we're at the end of the path, just return it
+		// If we're at the end of the path, check for read perms and return it
 		if len(terms) == 1 {
+
+			if !checkPerm(this, 'r') {
+				return nil, os.ErrPermission
+			}
+
 			return this, nil
 		}
 
@@ -184,6 +179,8 @@ func (i *inode) lookup(terms []string) (*inode, error) {
 	return nil, os.ErrNotExist
 }
 
+// Look up a symlink as a direct child inode.  This does not
+// recurse.
 func (i *inode) lookupSymlink(name string) (*inode, error) {
 	if !i.IsDir() {
 		return nil, os.ErrInvalid
@@ -201,6 +198,8 @@ func (i *inode) lookupSymlink(name string) (*inode, error) {
 	return l, nil
 }
 
+// Verify if the current Uid/Gid has access to the inode.
+// Accepts 'r', 'w' and 'x' as permission bits to check.
 func checkPerm(i *inode, perms ...rune) bool {
 	if Uid == 0 {
 		// root can do anything
@@ -242,6 +241,7 @@ func checkPerm(i *inode, perms ...rune) bool {
 	return true
 }
 
+// Find an inode by name in the filesystem
 func (t *TestFS) find(path string) (*inode, error) {
 	if path == "/" {
 		return &t.dirTree, nil
