@@ -6,6 +6,46 @@ import (
 	"testing"
 )
 
+func TestInodeFileInfo(t *testing.T) {
+	fs.Mkdir("/testfileinfo", os.FileMode(0775))
+
+	in, err := fs.find("/testfileinfo")
+	if err != nil {
+		t.Error(err)
+	}
+
+	var fileInfo os.FileInfo
+
+	fileInfo = in
+
+	in.data = []byte("testdata")
+
+	if fileInfo.Name() != "testfileinfo" {
+		t.Error("Bad name")
+	}
+
+	if !fileInfo.IsDir() {
+		t.Error("Bad dir status")
+	}
+
+	if fileInfo.Mode() != os.FileMode(0775)|os.ModeDir {
+		t.Error("Bad file mode")
+	}
+
+	if fileInfo.ModTime() != in.mtime {
+		t.Error("Bad modtime")
+	}
+
+	if fileInfo.Size() != int64(len(in.data)) {
+		t.Error("Bad size")
+	}
+
+	if fileInfo.Sys() != in {
+		t.Error("Bad sys interface")
+	}
+
+}
+
 func TestTruncate(t *testing.T) {
 
 	_, err := fs.Create("/testTruncate")
