@@ -69,6 +69,10 @@ func newFile(i *inode, flag int) *file {
 
 // Create a new file and open it.  Fail if file exists.
 func createFile(dir *inode, name string, flag int, perm os.FileMode) (File, error) {
+	if dir == nil {
+		return nil, os.ErrInvalid
+	}
+
 	if !checkPerm(dir, 'r', 'w', 'x') {
 		return nil, os.ErrPermission
 	}
@@ -90,6 +94,10 @@ func createFile(dir *inode, name string, flag int, perm os.FileMode) (File, erro
 
 // Open an existing file.  Fail if it does not exist.
 func openFile(dir *inode, name string, flag int) (File, error) {
+	if dir == nil {
+		return nil, os.ErrInvalid
+	}
+
 	if !checkPerm(dir, 'r', 'x') {
 		return nil, os.ErrPermission
 	}
@@ -190,7 +198,7 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 // and chdir requires the full path.
 // As it doesn't seem a particularly useful function
 // given the presence of the TestFs.Chdir() function,
-// for now just return an error
+// for now just return an error.
 func (f *file) Chdir() error {
 	return errors.New("Unsupported function")
 }
@@ -204,6 +212,8 @@ func (f *file) Chown(uid, gid int) error {
 }
 
 func (f *file) Close() error {
+	// Clear the inode reference before clearing the pointer
+	// in case some other function happens to keep a reference to it.
 	f.inode = nil
 	f = nil
 	return nil
