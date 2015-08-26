@@ -2,6 +2,7 @@ package testfs
 
 import (
 	"bytes"
+	"os"
 	"testing"
 )
 
@@ -59,9 +60,40 @@ func TestCreate(t *testing.T) {
 }
 
 func TestOpen(t *testing.T) {
+	_, err := fs.Open("/testOpen")
+	if !os.IsNotExist(err) {
+		t.Error("Bad error status")
+	}
 
+	_, err = fs.Create("/testOpen")
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = fs.find("/testOpen")
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestOpenFile(t *testing.T) {
+	_, err := fs.OpenFile("/testOpenFile", os.O_RDWR, 0)
+	if !os.IsNotExist(err) {
+		t.Error("Bad error status")
+	}
 
+	_, err = fs.OpenFile("/testOpenFile", os.O_RDWR|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = fs.find("/testOpenFile")
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = fs.OpenFile("/testOpenFile", os.O_RDWR|os.O_CREATE|os.O_EXCL, os.FileMode(0664))
+	if !os.IsExist(err) {
+		t.Error("Bad error status")
+	}
 }

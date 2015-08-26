@@ -12,13 +12,13 @@ const inodeAllocSize = 4096
 
 var (
 	Uid, Gid uint16
-	fdNum    fdCtr
+	fd       fdCtr
 )
 
 func init() {
 	Uid = uint16(os.Getuid())
 	Gid = uint16(os.Getgid())
-	fdNum.ctr = 0
+	fd.ctr = 0
 }
 
 // inode represents an entity in the filesystem.  Children are represented as
