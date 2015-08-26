@@ -1,6 +1,7 @@
 package testfs
 
 import (
+	"errors"
 	"os"
 	"path"
 	"sync"
@@ -183,8 +184,15 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 }
 
 // Methods to implement File
+
+// This is actually quite difficult to support
+// as we currently don't support walking upwards,
+// and chdir requires the full path.
+// As it doesn't seem a particularly useful function
+// given the presence of the TestFs.Chdir() function,
+// for now just return an error
 func (f *file) Chdir() error {
-	return nil
+	return errors.New("Unsupported function")
 }
 
 func (f *file) Chmod(mode os.FileMode) error {
