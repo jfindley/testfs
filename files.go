@@ -2,46 +2,15 @@ package testfs
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path"
 	"sort"
 	"sync"
 )
 
-// file is a thin layer over an inode to simulate the concept
-// of an open file.
-type file struct {
-	flag  int     // Permission bits
-	id    uintptr // Unique ID
-	inode *inode  // Reference to an inode
-	pos   int     // Read/Write position
-}
-
-// fdCtr is a counter to generate unique fd numbers.
-type fdCtr struct {
-	sync.Mutex
-	ctr uintptr
-}
-
-// next returns the next fd number.
-func (f *fdCtr) next() uintptr {
-	f.Lock()
-	defer f.Unlock()
-	f.ctr++
-	return f.ctr
-}
-
-// Open a new file
-func newFile(i *inode, flag int) *file {
-	f := new(file)
-	f.inode = i
-	f.flag = flag
-	f.id = fd.next()
-	return f
-}
-
 // Create a new file and open it.  Fail if file exists.
-func createFile(dir *inode, name string, flag int, perm os.FileMode) (File, error) {
+func createFile(dir *inode, name string, flag int, perm os.FileMode) (*file, error) {
 	if dir == nil {
 		return nil, os.ErrInvalid
 	}
@@ -66,7 +35,7 @@ func createFile(dir *inode, name string, flag int, perm os.FileMode) (File, erro
 }
 
 // Open an existing file.  Fail if it does not exist.
-func openFile(dir *inode, name string, flag int) (File, error) {
+func openFile(dir *inode, name string, flag int) (*file, error) {
 	if dir == nil {
 		return nil, os.ErrInvalid
 	}
@@ -173,18 +142,55 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 
 	}
 
-	return openFile(d, file, flag)
+	f, err := openFile(d, file, flag)
+
+	if flag&os.O_TRUNC == os.O_TRUNC {
+		err = f.Truncate(0)
+		return f, err
+	}
+
+	return f, err
 }
 
-// Methods to implement File
+// file is a thin layer over an inode to simulate the concept
+// of an open file.
+type file struct {
+	flag  int     // Permission bits
+	id    uintptr // Unique ID
+	inode *inode  // Reference to an inode
+	pos   int     // Read/Write position
+}
+
+// fdCtr is a counter to generate unique fd numbers.
+type fdCtr struct {
+	sync.Mutex
+	ctr uintptr
+}
+
+// next returns the next fd number.
+func (f *fdCtr) next() uintptr {
+	f.Lock()
+	defer f.Unlock()
+	f.ctr++
+	return f.ctr
+}
+
+// Open a new file
+func newFile(i *inode, flag int) *file {
+	f := new(file)
+	f.inode = i
+	f.flag = flag
+	f.id = fd.next()
+	return f
+}
 
 func (f *file) writable() bool {
 	switch {
 
-	case f.flag&os.O_RDWR == os.O_RDWR:
+	case f.flag&os.O_RDWR == os.O_RDWR && checkPerm(f.inode, 'w'):
 		return true
 
-	case f.flag&os.O_WRONLY == os.O_WRONLY:
+	case f.flag&os.O_WRONLY == os.O_WRONLY && checkPerm(f.inode, 'w'):
 		return true
 
 	default:
@@ -196,16 +202,129 @@ func (f *file) writable() bool {
 func (f *file) readable() bool {
 	switch {
 
-	case f.flag&os.O_RDWR == os.O_RDWR:
+	case f.flag&os.O_RDWR == os.O_RDWR && checkPerm(f.inode, 'r'):
 		return true
 
-	case f.flag&os.O_RDONLY == os.O_RDONLY:
+	case f.flag&os.O_RDONLY == os.O_RDONLY && checkPerm(f.inode, 'r'):
 		return true
 
 	default:
 		return false
 
 	}
+}
+
+// Read into b from file starting at absolute position pos.
+func (f *file) read(b []byte, pos int) (n int, err error) {
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
+	}
+	if !f.readable() {
+		return 0, os.ErrPermission
+	}
+
+	switch {
+
+	case pos >= len(f.inode.data):
+		n = 0
+		err = io.EOF
+
+	case pos+len(b) > len(f.inode.data):
+		copy(b, f.inode.data[pos:])
+		n = len(f.inode.data) - pos
+		err = io.EOF
+
+	default:
+		copy(b, f.inode.data[pos:pos+len(b)])
+		n = len(b)
+
+	}
+
+	// Set the new fd position
+	f.pos = pos + n
+
+	return
+}
+
+// Write b to file starting at absolute position pos.
+func (f *file) write(b []byte, pos int) (int, error) {
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
+	}
+	if !f.writable() {
+		return 0, os.ErrPermission
+	}
+
+	// We operate on a copy of the data stucture for thread safety.
+	data := f.inode.data
+
+	switch {
+
+	case pos > len(data):
+		// The data starts beyond the end of the existing file.  Zero
+		// pad the input data before appending.
+		off := pos - len(data)
+		buf := make([]byte, off+len(b))
+		copy(buf[off:], b)
+		data = append(data, buf...)
+
+	case pos == len(data):
+		data = append(data, b...)
+
+	case pos+len(b) > len(data):
+		// The data overlaps the end of the existing file.
+		data = data[:pos]
+		data = append(data, b...)
+
+	default:
+		copy(data[pos:len(b)], b)
+
+	}
+
+	f.inode.data = data
+
+	// Set the new fd position
+	f.pos = pos + len(b)
+
+	// There's no non-error case where we write less than len(b)
+	return len(b), nil
+}
+
+// Return a sorted array of directory contents
+func (f *file) ls() ([]os.FileInfo, error) {
+	if f == nil || f.inode == nil {
+		return nil, os.ErrInvalid
+	}
+	if !f.readable() {
+		return nil, os.ErrPermission
+	}
+
+	if !f.inode.IsDir() {
+		return nil, os.ErrInvalid
+	}
+
+	f.inode.mu.Lock()
+	defer f.inode.mu.Unlock()
+
+	var entries []string
+
+	for name := range f.inode.children {
+		if name == ".." {
+			continue
+		}
+		entries = append(entries, name)
+	}
+
+	sort.Strings(entries)
+
+	fi := make([]os.FileInfo, len(entries))
+
+	for i := range entries {
+		fi[i] = f.inode.children[entries[i]]
+	}
+
+	return fi, nil
+
 }
 
 // Chdir is actually quite difficult to support
@@ -267,83 +386,11 @@ func (f *file) Name() string {
 }
 
 func (f *file) Read(b []byte) (n int, err error) {
-	if f == nil || f.inode == nil {
-		return 0, os.ErrInvalid
-	}
-	if !f.readable() {
-		return 0, os.ErrPermission
-	}
-
-	return f.ReadAt(b, 0)
+	return f.read(b, f.pos)
 }
 
 func (f *file) ReadAt(b []byte, off int64) (n int, err error) {
-	if f == nil || f.inode == nil {
-		return 0, os.ErrInvalid
-	}
-	if !f.readable() {
-		return 0, os.ErrPermission
-	}
-
-	start := int(off) + f.pos
-	end := len(b) + f.pos
-
-	switch {
-
-	case start > len(f.inode.data):
-		return -1, os.ErrInvalid
-
-	case start+end > len(f.inode.data):
-		copy(b, f.inode.data[start:])
-		n = len(f.inode.data) - start
-
-	default:
-		copy(b, f.inode.data[start:end])
-		n = len(b)
-
-	}
-
-	// Set the new fd position
-	f.pos = start + n
-
-	return
-}
-
-// Return a sorted array of directory contents
-func (f *file) ls() ([]os.FileInfo, error) {
-	if f == nil || f.inode == nil {
-		return nil, os.ErrInvalid
-	}
-	if !f.readable() {
-		return nil, os.ErrPermission
-	}
-
-	if !f.inode.IsDir() {
-		return nil, os.ErrInvalid
-	}
-
-	f.inode.mu.Lock()
-	defer f.inode.mu.Unlock()
-
-	var entries []string
-
-	for name := range f.inode.children {
-		if name == ".." {
-			continue
-		}
-		entries = append(entries, name)
-	}
-
-	sort.Strings(entries)
-
-	fi := make([]os.FileInfo, len(entries))
-
-	for i := range entries {
-		fi[i] = f.inode.children[entries[i]]
-	}
-
-	return fi, nil
-
+	return f.read(b, int(off))
 }
 
 func (f *file) Readdir(n int) ([]os.FileInfo, error) {
@@ -402,7 +449,8 @@ func (f *file) Seek(offset int64, whence int) (ret int64, err error) {
 	}
 
 	if f.pos > len(f.inode.data) {
-		return 0, os.ErrInvalid
+		f.pos = len(f.inode.data)
+		return int64(f.pos), io.EOF
 	}
 
 	return int64(f.pos), nil
@@ -440,36 +488,19 @@ func (f *file) Truncate(size int64) error {
 	}
 
 	f.inode.data = truncateData(f.inode.data, size)
+	f.pos = 0
 
 	return nil
 }
 
 func (f *file) Write(b []byte) (n int, err error) {
-	if f == nil || f.inode == nil {
-		return 0, os.ErrInvalid
-	}
-	if !f.writable() {
-		return 0, os.ErrPermission
-	}
-	return f.WriteAt(b, 0)
+	return f.write(b, f.pos)
 }
 
 func (f *file) WriteAt(b []byte, off int64) (n int, err error) {
-	if f == nil || f.inode == nil {
-		return 0, os.ErrInvalid
-	}
-	if !f.writable() {
-		return 0, os.ErrPermission
-	}
-	return
+	return f.write(b, int(off))
 }
 
 func (f *file) WriteString(s string) (ret int, err error) {
-	if f == nil || f.inode == nil {
-		return 0, os.ErrInvalid
-	}
-	if !f.writable() {
-		return 0, os.ErrPermission
-	}
-	return f.WriteAt([]byte(s), 0)
+	return f.write([]byte(s), f.pos)
 }

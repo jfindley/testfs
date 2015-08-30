@@ -2,6 +2,7 @@ package testfs
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"testing"
 )
@@ -224,8 +225,8 @@ func TestFileRead(t *testing.T) {
 	buf := make([]byte, 20)
 
 	n, err := f.Read(buf)
-	if err != nil {
-		t.Error(err)
+	if err != io.EOF {
+		t.Error("Bad error status")
 	}
 	if n != 15 {
 		t.Error("Bad output len")
@@ -487,5 +488,131 @@ func TestFileTruncate(t *testing.T) {
 
 	if len(f.(*file).inode.data) != 4 {
 		t.Error("Bad size")
+	}
+}
+
+func TestFileWrite(t *testing.T) {
+	f, err := fs.Create("/testFileWrite")
+	if err != nil {
+		t.Error(err)
+	}
+
+	n, err := f.Write([]byte("test data"))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 9 {
+		t.Error("Bad length")
+	}
+
+	fi, err := f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if fi.Size() != 9 {
+		t.Error("Bad length")
+	}
+
+	n, err = f.Write([]byte("test data"))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 9 {
+		t.Error("Bad length")
+	}
+
+	fi, err = f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if fi.Size() != 18 {
+		t.Error("Bad length")
+	}
+
+	f.Seek(0, 0)
+	n, err = f.Write([]byte("new stuff"))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 9 {
+		t.Error("Bad length")
+	}
+
+	fi, err = f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if fi.Size() != 18 {
+		t.Error("Bad length")
+	}
+
+	f.Seek(14, 0)
+	n, err = f.Write([]byte("test data"))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 9 {
+		t.Error("Bad length")
+	}
+
+	fi, err = f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if fi.Size() != 23 {
+		t.Error("Bad length")
+	}
+
+}
+
+func TestFileWriteAt(t *testing.T) {
+	f, err := fs.Create("/testFileWriteAt")
+	if err != nil {
+		t.Error(err)
+	}
+
+	n, err := f.WriteAt([]byte("test data"), 100)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 9 {
+		t.Error("Bad length")
+	}
+
+	fi, err := f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if fi.Size() != 109 {
+		t.Error("Bad length")
+	}
+}
+
+func TestFileWriteString(t *testing.T) {
+	f, err := fs.Create("/testFileWriteString")
+	if err != nil {
+		t.Error(err)
+	}
+
+	n, err := f.WriteString("test data")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 9 {
+		t.Error("Bad length")
+	}
+
+	fi, err := f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if fi.Size() != 9 {
+		t.Error("Bad length")
 	}
 }
