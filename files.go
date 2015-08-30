@@ -193,9 +193,39 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 
 // Methods to implement File
 
-// This is actually quite difficult to support
+func (f *file) writable() bool {
+	switch {
+
+	case f.flag&os.O_RDWR == os.O_RDWR:
+		return true
+
+	case f.flag&os.O_WRONLY == os.O_WRONLY:
+		return true
+
+	default:
+		return false
+
+	}
+}
+
+func (f *file) readable() bool {
+	switch {
+
+	case f.flag&os.O_RDWR == os.O_RDWR:
+		return true
+
+	case f.flag&os.O_RDONLY == os.O_RDONLY:
+		return true
+
+	default:
+		return false
+
+	}
+}
+
+// Chdir is actually quite difficult to support
 // as we currently don't support walking upwards,
-// and chdir requires the full path.
+// and testfs.chdir requires the full path.
 // As it doesn't seem a particularly useful function
 // given the presence of the TestFs.Chdir() function,
 // for now just return an error.
@@ -204,11 +234,27 @@ func (f *file) Chdir() error {
 }
 
 func (f *file) Chmod(mode os.FileMode) error {
-	return nil
+
+	if f.inode == nil {
+		return os.ErrInvalid
+	}
+	if !f.writable() {
+		return os.ErrPermission
+	}
+
+	return f.inode.chmod(mode)
 }
 
 func (f *file) Chown(uid, gid int) error {
-	return nil
+
+	if f.inode == nil {
+		return os.ErrInvalid
+	}
+	if !f.writable() {
+		return os.ErrPermission
+	}
+
+	return f.inode.chown(uid, gid)
 }
 
 func (f *file) Close() error {

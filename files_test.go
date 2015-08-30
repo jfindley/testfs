@@ -87,10 +87,12 @@ func TestTruncate(t *testing.T) {
 
 func TestCreate(t *testing.T) {
 
-	_, err := fs.Create("/testCreate")
+	f, err := fs.Create("/testCreate")
 	if err != nil {
 		t.Error(err)
 	}
+
+	f.Close()
 
 	_, err = fs.find("/testCreate")
 	if err != nil {
@@ -100,15 +102,16 @@ func TestCreate(t *testing.T) {
 }
 
 func TestOpen(t *testing.T) {
-	_, err := fs.Open("/testOpen")
+	f, err := fs.Open("/testOpen")
 	if !os.IsNotExist(err) {
 		t.Error("Bad error status")
 	}
 
-	_, err = fs.Create("/testOpen")
+	f, err = fs.Create("/testOpen")
 	if err != nil {
 		t.Error(err)
 	}
+	f.Close()
 
 	_, err = fs.find("/testOpen")
 	if err != nil {
@@ -136,4 +139,82 @@ func TestOpenFile(t *testing.T) {
 	if !os.IsExist(err) {
 		t.Error("Bad error status")
 	}
+}
+
+func TestFileChdir(t *testing.T) {
+	f := file{}
+	if f.Chdir().Error() != "Unsupported function" {
+		t.Fail()
+	}
+}
+
+func TestFileChmod(t *testing.T) {
+	f, err := fs.OpenFile("/testFileChmod1", os.O_RDONLY|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = f.Chmod(os.FileMode(1775))
+	if !os.IsPermission(err) {
+		t.Error("Bad error status")
+	}
+
+	f.Close()
+
+	f, err = fs.OpenFile("/testFileChmod2", os.O_RDWR|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = f.Chmod(os.FileMode(1775))
+	if err != nil {
+		t.Error(err)
+	}
+	f.Close()
+
+	i, err := fs.find("/testFileChmod2")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if i.mode != os.FileMode(1775) {
+		t.Error("Bad mode")
+	}
+}
+
+func TestFileChown(t *testing.T) {
+	f, err := fs.OpenFile("/testFileChown", os.O_RDWR|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = f.Chown(501, 500)
+	if err != nil {
+		t.Error(err)
+	}
+	f.Close()
+
+	i, err := fs.find("/testFileChown")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if i.uid != 501 || i.gid != 500 {
+		t.Error("Bad ownership")
+	}
+}
+
+func TestFileClose(t *testing.T) {
+	f, err := fs.OpenFile("/testFileClose", os.O_RDWR|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	f.Close()
+
+	err = f.Chmod(0775)
+	if err != os.ErrInvalid {
+		t.Error("Bad error status")
+	}
+
 }

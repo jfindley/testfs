@@ -6,30 +6,50 @@ import (
 	"time"
 )
 
+func (i *inode) chmod(mode os.FileMode) error {
+	if !checkPerm(i, 'r') {
+		return os.ErrPermission
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Blank out existing permission bits
+	perm := i.mode
+	perm = perm >> 10
+	perm = perm << 10
+
+	perm = perm &^ os.ModeSetuid
+	perm = perm &^ os.ModeSetgid
+	perm = perm &^ os.ModeSticky
+
+	// Set new permission bits
+	perm |= mode
+
+	i.mode = perm
+	return nil
+}
+
+func (i *inode) chown(uid, gid int) error {
+	if !checkPerm(i, 'r') {
+		return os.ErrPermission
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.uid = uint16(uid)
+	i.gid = uint16(gid)
+	return nil
+}
+
 func (t *TestFS) Chmod(name string, mode os.FileMode) error {
 	f, err := t.find(name)
 	if err != nil {
 		return err
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	// Blank out existing permission bits
-	this := f.mode
-	this = this >> 10
-	this = this << 10
-
-	this = this &^ os.ModeSetuid
-	this = this &^ os.ModeSetgid
-	this = this &^ os.ModeSticky
-
-	// Set new permission bits
-	this |= mode
-
-	f.mode = this
-
-	return nil
+	return f.chmod(mode)
 }
 
 func (t *TestFS) Chown(name string, uid, gid int) error {
@@ -38,16 +58,7 @@ func (t *TestFS) Chown(name string, uid, gid int) error {
 		return err
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	this := f
-	this.uid = uint16(uid)
-	this.gid = uint16(gid)
-
-	f = this
-
-	return nil
+	return f.chown(uid, gid)
 }
 
 func (t *TestFS) Link(oldname, newname string) error {
