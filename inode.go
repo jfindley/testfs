@@ -6,6 +6,34 @@ import (
 	"time"
 )
 
+// Methods to implement os.FileInfo
+func (i *inode) Name() string {
+	return i.name
+}
+
+func (i *inode) Size() int64 {
+	return int64(len(i.data))
+}
+
+func (i *inode) Mode() os.FileMode {
+	return i.mode
+}
+
+func (i *inode) ModTime() time.Time {
+	return i.mtime
+}
+
+func (i *inode) IsDir() bool {
+	if i.mode&os.ModeDir == 0 {
+		return false
+	}
+	return true
+}
+
+func (i *inode) Sys() interface{} {
+	return i
+}
+
 func (i *inode) chmod(mode os.FileMode) error {
 	if !checkPerm(i, 'r') {
 		return os.ErrPermission
