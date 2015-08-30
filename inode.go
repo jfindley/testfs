@@ -272,7 +272,10 @@ func unlinkall(in *inode) {
 		return
 	}
 
-	for _, child := range in.children {
+	for name, child := range in.children {
+		if name == ".." {
+			continue
+		}
 		unlinkall(child)
 	}
 

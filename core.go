@@ -64,6 +64,7 @@ func (i *inode) newSkipLock(name string, uid, gid uint16, mode os.FileMode) erro
 	}
 	if i.IsDir() {
 		entry.children = make(map[string]*inode)
+		entry.children[".."] = i
 	}
 	if _, ok := i.children[name]; ok {
 		return os.ErrExist
@@ -117,18 +118,10 @@ func parsePath(path string) ([]string, error) {
 
 		switch elems[i] {
 
-		// We parse out the . and .. paths rather than
-		// create them on every Mkdir().  This substantially
-		// reduces hardlink complexity.
+		// We parse out the . path rather than
+		// creating self-referential structures.
 		case "", ".":
 			continue
-
-		case "..":
-			if len(terms) > 0 {
-				terms = terms[:len(terms)-1]
-			} else {
-				return nil, os.ErrNotExist
-			}
 
 		default:
 			terms = append(terms, elems[i])

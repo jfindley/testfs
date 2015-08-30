@@ -43,7 +43,7 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = parsePath("/tmp/test")
+	terms, err = parsePath("/tmp//test")
 	if err != nil {
 		t.Error("Parse failure")
 	}
@@ -59,24 +59,11 @@ func TestParsePath(t *testing.T) {
 		t.Error("Parse failure")
 	}
 
-	terms, err = parsePath("/tmp/./test/")
+	terms, err = parsePath("/tmp///./test/")
 	if err != nil {
 		t.Error("Parse failure")
 	}
 	if len(terms) != 2 || terms[0] != "tmp" || terms[1] != "test" {
-		t.Error("Parse failure")
-	}
-
-	terms, err = parsePath("/tmp/test/../test/")
-	if err != nil {
-		t.Error("Parse failure")
-	}
-	if len(terms) != 2 || terms[0] != "tmp" || terms[1] != "test" {
-		t.Error("Parse failure")
-	}
-
-	terms, err = parsePath("/tmp/../../test/")
-	if err != os.ErrNotExist {
 		t.Error("Parse failure")
 	}
 
@@ -187,21 +174,29 @@ func BenchmarkCheckPerm(b *testing.B) {
 }
 
 func TestFind(t *testing.T) {
-	_, err := fs.find("/tmp/testfind")
+	_, err := fs.find("/tmp/test/find")
 	if !os.IsNotExist(err) {
 		t.Error("Bad error status")
 	}
 
-	err = fs.MkdirAll("/tmp/testfind", os.FileMode(0755))
+	err = fs.MkdirAll("/tmp/test/find", os.FileMode(0755))
 	if err != nil {
 		t.Error(err)
 	}
 
-	in, err := fs.find("/tmp/testfind")
+	in, err := fs.find("/tmp/test/find")
 	if err != nil {
 		t.Error(err)
 	}
-	if in.name != "testfind" {
+	if in.name != "find" {
+		t.Error("Bad name")
+	}
+
+	in, err = fs.find("/tmp//test/../test/./find")
+	if err != nil {
+		t.Error(err)
+	}
+	if in.name != "find" {
 		t.Error("Bad name")
 	}
 }

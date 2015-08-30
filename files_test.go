@@ -178,3 +178,35 @@ func TestFileClose(t *testing.T) {
 	}
 
 }
+
+func TestFileFd(t *testing.T) {
+	f, err := fs.Create("/testFileFd")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if f.Fd() == 0 {
+		t.Error("Bad FD")
+	}
+
+	f.Close()
+	if f.Fd() != 0 {
+		t.Error("Bad FD")
+	}
+}
+
+func TestFileName(t *testing.T) {
+	f, err := fs.Create("/testFileName")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if f.Name() != "testFileName" {
+		t.Error("Bad name")
+	}
+
+	f.Close()
+	if f.Name() != "" {
+		t.Error("Bad name")
+	}
+}

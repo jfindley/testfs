@@ -237,10 +237,16 @@ func (f *file) Close() error {
 }
 
 func (f *file) Fd() uintptr {
+	if f.inode == nil {
+		return 0
+	}
 	return f.id
 }
 
 func (f *file) Name() string {
+	if f.inode == nil {
+		return ""
+	}
 	return f.inode.name
 }
 
