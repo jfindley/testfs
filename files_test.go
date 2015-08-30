@@ -470,3 +470,22 @@ func TestFileStat(t *testing.T) {
 		t.Error("Bad size")
 	}
 }
+
+func TestFileTruncate(t *testing.T) {
+	f, err := fs.Create("/testFileTruncate")
+	if err != nil {
+		t.Error(err)
+	}
+
+	data := []byte("short test data")
+	f.(*file).inode.data = data
+
+	err = f.Truncate(4)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(f.(*file).inode.data) != 4 {
+		t.Error("Bad size")
+	}
+}

@@ -103,6 +103,19 @@ func openFile(dir *inode, name string, flag int) (File, error) {
 	return newFile(f, flag), nil
 }
 
+func truncateData(data []byte, size int64) []byte {
+	s := int(size)
+
+	if len(data) > s {
+		// We do this to avoid memory leaks when truncating large files.
+		newData := make([]byte, s)
+		copy(newData, data[:s])
+		data = newData
+	}
+
+	return data
+}
+
 func (t *TestFS) Truncate(name string, size int64) error {
 	f, err := fs.find(name)
 	if err != nil {
@@ -113,9 +126,8 @@ func (t *TestFS) Truncate(name string, size int64) error {
 		return os.ErrPermission
 	}
 
-	if len(f.data) > int(size) {
-		f.data = f.data[:int(size)]
-	}
+	f.data = truncateData(f.data, size)
+
 	return nil
 }
 
@@ -239,30 +251,38 @@ func (f *file) Close() error {
 }
 
 func (f *file) Fd() uintptr {
-	if f.inode == nil {
+	if f == nil || f.inode == nil {
 		return 0
 	}
+
 	return f.id
 }
 
 func (f *file) Name() string {
-	if f.inode == nil {
+	if f == nil || f.inode == nil {
 		return ""
 	}
+
 	return f.inode.name
 }
 
 func (f *file) Read(b []byte) (n int, err error) {
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
+	}
 	if !f.readable() {
-		return -1, os.ErrPermission
+		return 0, os.ErrPermission
 	}
 
 	return f.ReadAt(b, 0)
 }
 
 func (f *file) ReadAt(b []byte, off int64) (n int, err error) {
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
+	}
 	if !f.readable() {
-		return -1, os.ErrPermission
+		return 0, os.ErrPermission
 	}
 
 	start := int(off) + f.pos
@@ -291,6 +311,9 @@ func (f *file) ReadAt(b []byte, off int64) (n int, err error) {
 
 // Return a sorted array of directory contents
 func (f *file) ls() ([]os.FileInfo, error) {
+	if f == nil || f.inode == nil {
+		return nil, os.ErrInvalid
+	}
 	if !f.readable() {
 		return nil, os.ErrPermission
 	}
@@ -324,7 +347,6 @@ func (f *file) ls() ([]os.FileInfo, error) {
 }
 
 func (f *file) Readdir(n int) ([]os.FileInfo, error) {
-
 	entries, err := f.ls()
 	if err != nil {
 		return nil, err
@@ -398,37 +420,56 @@ func (f *file) Stat() (fi os.FileInfo, err error) {
 	return f.inode, nil
 }
 
-func (f *file) Sync() (err error) {
-	if !f.writable() {
-		return os.ErrPermission
+// This makes absolutely no sense in a memory-backed FS.  Don't do anything.
+func (f *file) Sync() error {
+	if f == nil || f.inode == nil {
+		return os.ErrInvalid
 	}
-	return
-}
-
-func (f *file) Truncate(size int64) error {
 	if !f.writable() {
 		return os.ErrPermission
 	}
 	return nil
 }
 
-func (f *file) Write(b []byte) (n int, err error) {
-	if !f.writable() {
-		return -1, os.ErrPermission
+func (f *file) Truncate(size int64) error {
+	if f == nil || f.inode == nil {
+		return os.ErrInvalid
 	}
-	return
+	if !f.writable() {
+		return os.ErrPermission
+	}
+
+	f.inode.data = truncateData(f.inode.data, size)
+
+	return nil
+}
+
+func (f *file) Write(b []byte) (n int, err error) {
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
+	}
+	if !f.writable() {
+		return 0, os.ErrPermission
+	}
+	return f.WriteAt(b, 0)
 }
 
 func (f *file) WriteAt(b []byte, off int64) (n int, err error) {
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
+	}
 	if !f.writable() {
-		return -1, os.ErrPermission
+		return 0, os.ErrPermission
 	}
 	return
 }
 
 func (f *file) WriteString(s string) (ret int, err error) {
-	if !f.writable() {
-		return -1, os.ErrPermission
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
 	}
-	return
+	if !f.writable() {
+		return 0, os.ErrPermission
+	}
+	return f.WriteAt([]byte(s), 0)
 }
