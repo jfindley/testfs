@@ -235,8 +235,10 @@ func TestFileRead(t *testing.T) {
 		t.Error("Bad data")
 	}
 
-	data = []byte("long test data.........................................................................................")
+	data = []byte("long test data......................................................................................")
 	f.(*file).inode.data = data
+	// Reset position
+	f.(*file).pos = 0
 
 	n, err = f.Read(buf)
 	if err != nil {
@@ -246,8 +248,21 @@ func TestFileRead(t *testing.T) {
 		t.Error("Bad output len")
 	}
 
-	if bytes.Compare(buf, data[:n]) != 0 {
+	if bytes.Compare(buf, data[:20]) != 0 {
 		t.Error("Bad data")
+	}
+
+	// Test next read gets the next chunk
+	n, err = f.Read(buf)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != 20 {
+		t.Error("Bad output len")
+	}
+
+	if bytes.Compare(buf, data[20:40]) != 0 {
+		t.Error("Bad data", string(buf))
 	}
 
 }
@@ -366,4 +381,92 @@ func TestFileReaddirnames(t *testing.T) {
 		t.Error("Bad result length")
 	}
 
+}
+
+func TestFileSeek(t *testing.T) {
+	f, err := fs.Create("/testFileSeek")
+	if err != nil {
+		t.Error(err)
+	}
+
+	data := []byte("long test data......................................................................................")
+	f.(*file).inode.data = data
+
+	p, err := f.Seek(1, 3)
+	if err == nil {
+		t.Error("Bad error status")
+	}
+
+	p, err = f.Seek(1, 2)
+	if err == nil {
+		t.Error("Bad error status")
+	}
+
+	p, err = f.Seek(-4, 2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if int(p) != len(data)-4 {
+		t.Error("Bad position")
+	}
+
+	buf := make([]byte, 4)
+
+	_, err = f.Read(buf)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if bytes.Compare(buf, []byte("....")) != 0 {
+		t.Error("Bad data")
+	}
+
+	_, err = f.Seek(0, 0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = f.Read(buf)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if bytes.Compare(buf, []byte("long")) != 0 {
+		t.Error("Bad data")
+	}
+
+	_, err = f.Seek(1, 1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = f.Read(buf)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if bytes.Compare(buf, []byte("test")) != 0 {
+		t.Error("Bad data")
+	}
+
+}
+
+func TestFileStat(t *testing.T) {
+	f, err := fs.Create("/testFileStat")
+	if err != nil {
+		t.Error(err)
+	}
+
+	data := []byte("short test data")
+	f.(*file).inode.data = data
+
+	fi, err := f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if fi.Size() != int64(len(data)) {
+		t.Error("Bad size")
+	}
 }

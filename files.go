@@ -11,9 +11,10 @@ import (
 // file is a thin layer over an inode to simulate the concept
 // of an open file.
 type file struct {
-	flag  int
-	id    uintptr
-	inode *inode
+	flag  int     // Permission bits
+	id    uintptr // Unique ID
+	inode *inode  // Reference to an inode
+	pos   int     // Read/Write position
 }
 
 // fdCtr is a counter to generate unique fd numbers.
@@ -264,22 +265,26 @@ func (f *file) ReadAt(b []byte, off int64) (n int, err error) {
 		return -1, os.ErrPermission
 	}
 
-	o := int(off)
+	start := int(off) + f.pos
+	end := len(b) + f.pos
 
 	switch {
 
-	case o > len(f.inode.data):
+	case start > len(f.inode.data):
 		return -1, os.ErrInvalid
 
-	case len(b)+o > len(f.inode.data):
-		copy(b, f.inode.data[o:])
-		n = len(f.inode.data) - o
+	case start+end > len(f.inode.data):
+		copy(b, f.inode.data[start:])
+		n = len(f.inode.data) - start
 
 	default:
-		copy(b, f.inode.data[off:len(b)])
+		copy(b, f.inode.data[start:end])
 		n = len(b)
 
 	}
+
+	// Set the new fd position
+	f.pos = start + n
 
 	return
 }
@@ -354,17 +359,43 @@ func (f *file) Readdirnames(n int) (names []string, err error) {
 }
 
 func (f *file) Seek(offset int64, whence int) (ret int64, err error) {
-	if !f.readable() {
-		return -1, os.ErrPermission
+	if f == nil || f.inode == nil {
+		return 0, os.ErrInvalid
 	}
-	return
+
+	switch whence {
+
+	case 0:
+		f.pos = int(offset)
+
+	case 1:
+		f.pos += int(offset)
+
+	case 2:
+		f.pos = len(f.inode.data) + int(offset)
+
+	default:
+		return 0, os.ErrInvalid
+
+	}
+
+	if f.pos > len(f.inode.data) {
+		return 0, os.ErrInvalid
+	}
+
+	return int64(f.pos), nil
 }
 
 func (f *file) Stat() (fi os.FileInfo, err error) {
+	if f == nil || f.inode == nil {
+		return nil, os.ErrInvalid
+	}
+
 	if !f.readable() {
 		return nil, os.ErrPermission
 	}
-	return
+
+	return f.inode, nil
 }
 
 func (f *file) Sync() (err error) {
