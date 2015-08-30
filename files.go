@@ -86,7 +86,7 @@ func truncateData(data []byte, size int64) []byte {
 }
 
 func (t *TestFS) Truncate(name string, size int64) error {
-	f, err := fs.find(name)
+	f, err := t.find(name)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (t *TestFS) Truncate(name string, size int64) error {
 func (t *TestFS) Create(name string) (File, error) {
 	dir, file := path.Split(name)
 
-	d, err := fs.find(dir)
+	d, err := t.find(dir)
 	if err != nil {
 		return nil, err
 	}

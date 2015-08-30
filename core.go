@@ -236,14 +236,17 @@ func checkPerm(i *inode, perms ...rune) bool {
 
 // Find an inode by name in the filesystem
 func (t *TestFS) find(path string) (*inode, error) {
+
 	if path == "/" {
 		return &t.dirTree, nil
 	}
+
 	if path == "" || path == "." {
 		return t.cwd, nil
 	}
 
 	terms, err := parsePath(path)
+
 	if err != nil {
 		return nil, err
 	}
@@ -251,5 +254,6 @@ func (t *TestFS) find(path string) (*inode, error) {
 	if path[0] == '/' {
 		return t.dirTree.lookup(terms)
 	}
+
 	return t.cwd.lookup(terms)
 }
