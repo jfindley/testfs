@@ -210,3 +210,160 @@ func TestFileName(t *testing.T) {
 		t.Error("Bad name")
 	}
 }
+
+func TestFileRead(t *testing.T) {
+	f, err := fs.OpenFile("/testFileRead", os.O_RDWR|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	data := []byte("short test data")
+
+	f.(*file).inode.data = data
+
+	buf := make([]byte, 20)
+
+	n, err := f.Read(buf)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != 15 {
+		t.Error("Bad output len")
+	}
+
+	if bytes.Compare(buf[:n], data) != 0 {
+		t.Error("Bad data")
+	}
+
+	data = []byte("long test data.........................................................................................")
+	f.(*file).inode.data = data
+
+	n, err = f.Read(buf)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != 20 {
+		t.Error("Bad output len")
+	}
+
+	if bytes.Compare(buf, data[:n]) != 0 {
+		t.Error("Bad data")
+	}
+
+}
+
+func TestFileReadAt(t *testing.T) {
+	f, err := fs.OpenFile("/testFileRead", os.O_RDWR|os.O_CREATE, os.FileMode(0664))
+	if err != nil {
+		t.Error(err)
+	}
+
+	data := []byte("short test data")
+
+	f.(*file).inode.data = data
+
+	buf := make([]byte, 20)
+
+	_, err = f.ReadAt(buf, 100)
+	if err == nil {
+		t.Error("Bad error status")
+	}
+}
+
+func TestFileReaddir(t *testing.T) {
+	err := fs.MkdirAll("/testFileReaddir/1", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Mkdir("/testFileReaddir/3", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Mkdir("/testFileReaddir/2", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Mkdir("/testFileReaddir/4", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	f, err := fs.Open("/testFileReaddir")
+	if err != nil {
+		t.Error(err)
+	}
+
+	fi, err := f.Readdir(2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(fi) != 2 {
+		t.Error("Bad result length")
+	}
+	if fi[0].Name() != "1" || fi[1].Name() != "2" {
+		t.Error("Bad result content", fi[0].Name())
+	}
+
+	fi, err = f.Readdir(0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(fi) != 4 {
+		t.Error("Bad result length")
+	}
+
+}
+
+func TestFileReaddirnames(t *testing.T) {
+	err := fs.MkdirAll("/testFileReaddirnames/1", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Mkdir("/testFileReaddirnames/3", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Mkdir("/testFileReaddirnames/2", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = fs.Mkdir("/testFileReaddirnames/4", os.FileMode(0755))
+	if err != nil {
+		t.Error(err)
+	}
+
+	f, err := fs.Open("/testFileReaddirnames")
+	if err != nil {
+		t.Error(err)
+	}
+
+	names, err := f.Readdirnames(2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(names) != 2 {
+		t.Error("Bad result length")
+	}
+	if names[0] != "1" || names[1] != "2" {
+		t.Error("Bad result content")
+	}
+
+	names, err = f.Readdirnames(0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(names) != 4 {
+		t.Error("Bad result length")
+	}
+
+}

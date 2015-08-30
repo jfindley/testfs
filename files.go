@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"sort"
 	"sync"
 )
 
@@ -251,45 +252,152 @@ func (f *file) Name() string {
 }
 
 func (f *file) Read(b []byte) (n int, err error) {
-	return
+	if !f.readable() {
+		return -1, os.ErrPermission
+	}
+
+	return f.ReadAt(b, 0)
 }
 
 func (f *file) ReadAt(b []byte, off int64) (n int, err error) {
+	if !f.readable() {
+		return -1, os.ErrPermission
+	}
+
+	o := int(off)
+
+	switch {
+
+	case o > len(f.inode.data):
+		return -1, os.ErrInvalid
+
+	case len(b)+o > len(f.inode.data):
+		copy(b, f.inode.data[o:])
+		n = len(f.inode.data) - o
+
+	default:
+		copy(b, f.inode.data[off:len(b)])
+		n = len(b)
+
+	}
+
 	return
 }
 
-func (f *file) Readdir(n int) (fi []os.FileInfo, err error) {
-	return
+// Return a sorted array of directory contents
+func (f *file) ls() ([]os.FileInfo, error) {
+	if !f.readable() {
+		return nil, os.ErrPermission
+	}
+
+	if !f.inode.IsDir() {
+		return nil, os.ErrInvalid
+	}
+
+	f.inode.mu.Lock()
+	defer f.inode.mu.Unlock()
+
+	var entries []string
+
+	for name := range f.inode.children {
+		if name == ".." {
+			continue
+		}
+		entries = append(entries, name)
+	}
+
+	sort.Strings(entries)
+
+	fi := make([]os.FileInfo, len(entries))
+
+	for i := range entries {
+		fi[i] = f.inode.children[entries[i]]
+	}
+
+	return fi, nil
+
+}
+
+func (f *file) Readdir(n int) ([]os.FileInfo, error) {
+
+	entries, err := f.ls()
+	if err != nil {
+		return nil, err
+	}
+
+	if n > 0 && n < len(entries) {
+		return entries[:n], nil
+	}
+	return entries, nil
 }
 
 func (f *file) Readdirnames(n int) (names []string, err error) {
+	entries, err := f.ls()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range entries {
+
+		switch {
+
+		case n > 0 && n <= len(names):
+			return
+
+		default:
+			names = append(names, entries[i].Name())
+
+		}
+
+	}
 	return
 }
 
 func (f *file) Seek(offset int64, whence int) (ret int64, err error) {
+	if !f.readable() {
+		return -1, os.ErrPermission
+	}
 	return
 }
 
 func (f *file) Stat() (fi os.FileInfo, err error) {
+	if !f.readable() {
+		return nil, os.ErrPermission
+	}
 	return
 }
 
 func (f *file) Sync() (err error) {
+	if !f.writable() {
+		return os.ErrPermission
+	}
 	return
 }
 
 func (f *file) Truncate(size int64) error {
+	if !f.writable() {
+		return os.ErrPermission
+	}
 	return nil
 }
 
 func (f *file) Write(b []byte) (n int, err error) {
+	if !f.writable() {
+		return -1, os.ErrPermission
+	}
 	return
 }
 
 func (f *file) WriteAt(b []byte, off int64) (n int, err error) {
+	if !f.writable() {
+		return -1, os.ErrPermission
+	}
 	return
 }
 
 func (f *file) WriteString(s string) (ret int, err error) {
+	if !f.writable() {
+		return -1, os.ErrPermission
+	}
 	return
 }
