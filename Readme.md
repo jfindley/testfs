@@ -9,6 +9,10 @@ All syntax and functionality should be identical to the core "os" package.
 To use this in your projects, create a Filesystem variable, and use either NewOSFS or NewTestFS to use either the normal on-disk filesystem
 or the in-memory TestFS filesystem.
 
+# Stability
+
+Current status of the code is first alpha, at best.  There may well be bugs.  However, the interface is set in stone, as it is designed to exactly match the core "os" package.  Any behaviour that doesn't match "os" is a bug, and will be fixed.
+
 # Performance
 
 It's entirely in RAM, so general IO performance is excellent.  However, making this behave like a real POSIX filesystem introduces a bunch of overheads in areas like directory creation and traversal, for example.  A well implemented key/value store will be considerably faster, albeit with far fewer features.
