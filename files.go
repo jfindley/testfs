@@ -31,7 +31,9 @@ func createFile(dir *inode, name string, flag int, perm os.FileMode) (*file, err
 		return nil, err
 	}
 
-	return newFile(dir.children[name], flag), nil
+	f, err := newFile(dir.children[name], flag), nil
+
+	return f, err
 }
 
 // Open an existing file.  Fail if it does not exist.
@@ -107,8 +109,9 @@ func (t *TestFS) Create(name string) (File, error) {
 	if err != nil {
 		return nil, err
 	}
+	f, err := createFile(d, file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 
-	return createFile(d, file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	return f, err
 }
 
 func (t *TestFS) Open(name string) (File, error) {

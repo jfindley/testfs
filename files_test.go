@@ -616,3 +616,25 @@ func TestFileWriteString(t *testing.T) {
 		t.Error("Bad length")
 	}
 }
+
+func BenchmarkRead(b *testing.B) {
+	f, _ := fs.OpenFile("/testBenchmarkRead", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777)
+
+	in := []byte("1234567890qwertyuiopasdfghjklzxcvbnm1234567890qwertyuiopasdfghjklzxcvbnm")
+	f.Write(in)
+	out := make([]byte, len(in))
+
+	for n := 0; n < b.N; n++ {
+		f.ReadAt(out, 0)
+	}
+}
+
+func BenchmarkWrite(b *testing.B) {
+	f, _ := fs.OpenFile("/testBenchmarkWrite", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777)
+
+	in := []byte("1234567890qwertyuiopasdfghjklzxcvbnm1234567890qwertyuiopasdfghjklzxcvbnm")
+
+	for n := 0; n < b.N; n++ {
+		f.WriteAt(in, 0)
+	}
+}
