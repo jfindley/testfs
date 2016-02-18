@@ -12,7 +12,7 @@ var fs *TestFS
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	fs = NewTestFS()
+	fs = NewTestFS(0,0)
 	Uid = 0
 	Gid = 0
 
@@ -70,7 +70,7 @@ func TestParsePath(t *testing.T) {
 }
 
 func BenchmarkParsePath(b *testing.B) {
-	fs = NewTestFS()
+	fs = NewTestFS(0,0)
 	path := "/test/path/with/five/elements"
 
 	for n := 0; n < b.N; n++ {
@@ -160,7 +160,7 @@ func TestCheckPerm(t *testing.T) {
 }
 
 func BenchmarkCheckPerm(b *testing.B) {
-	fs = NewTestFS()
+	fs = NewTestFS(0,0)
 	err := fs.dirTree.new("benchcheckperm", Uid, Gid, os.FileMode(0644))
 	if err != nil {
 		b.Error(err)

@@ -59,14 +59,14 @@ func TestOSFS(t *testing.T) {
 // Make sure that TestFS works in the same way as OSFS.
 func TestTestFS(t *testing.T) {
 	var testfs FileSystem
-	testfs = NewTestFS()
+	testfs = NewTestFS(0,0)
 
 	err := testfs.MkdirAll(os.TempDir(), os.FileMode(1777))
 	if err != nil {
 		t.Error(err)
 	}
 
-	f, err := testfs.Create(os.TempDir() + "testfile")
+	f, err := testfs.Create(os.TempDir() + "/testfile")
 	if err != nil {
 		t.Error(err)
 	}

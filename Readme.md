@@ -8,6 +8,7 @@ All syntax and functionality should be identical to the core "os" package.
 
 To use this in your projects, create a Filesystem variable, and use either NewOSFS or NewTestFS to use either the normal on-disk filesystem
 or the in-memory TestFS filesystem.
+NewTestFs takes two parameters, the root UID and GID.  To use the current user, there's a helper function: NewLocalTestFS.
 
 # Stability
 

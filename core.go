@@ -72,7 +72,6 @@ func (i *inode) newSkipLock(name string, uid, gid uint16, mode os.FileMode) erro
 	i.children[name] = &entry
 	i.mtime = time.Now()
 	return nil
-
 }
 
 // TestFS implements an in-memory filesystem.  We use maps rather than
@@ -85,19 +84,24 @@ type TestFS struct {
 
 // Creates and initialises a new TestFS filesystem.  Creating a TestFS
 // filesystem any other way is not supported.
-func NewTestFS() *TestFS {
+func NewTestFS(uid, gid int) *TestFS {
 	t := new(TestFS)
 	t.dirTree.children = make(map[string]*inode)
 	t.dirTree.mu = new(sync.Mutex)
-	t.dirTree.uid = 0
-	t.dirTree.gid = 0
-	t.dirTree.mode = os.FileMode(0555) | os.ModeDir
+	t.dirTree.uid = uint16(uid)
+	t.dirTree.gid = uint16(gid)
+	t.dirTree.mode = os.FileMode(0755) | os.ModeDir
 	t.dirTree.xattrs = make(map[string]string)
 	t.dirTree.linkCount = 1
 	t.dirTree.name = sep
 	t.cwd = &t.dirTree
 	t.cwdPath = sep
 	return t
+}
+
+func NewLocalTestFS() *TestFS {
+    return NewTestFS(os.Getuid(), os.Getgid())
+    
 }
 
 // Split a filesystem path into elements.
