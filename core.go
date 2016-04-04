@@ -41,13 +41,14 @@ type inode struct {
 
 // Stat_t is the data type returned by the Sys() interface for a testfs file.
 type Stat_t struct {
-    Name string
-    Uid uint16
-    Gid uint16
-    Mode os.FileMode
-    Xattrs map[string]string
-    Mtime time.Time
-    Linkname string
+	Name     string
+	Uid      uint16
+	Gid      uint16
+	Mode     os.FileMode
+	Xattrs   map[string]string
+	Mtime    time.Time
+	Size     int64
+	Linkname string
 }
 
 // Create a new inode as a child of this one
@@ -111,8 +112,8 @@ func NewTestFS(uid, gid int) *TestFS {
 }
 
 func NewLocalTestFS() *TestFS {
-    return NewTestFS(os.Getuid(), os.Getgid())
-    
+	return NewTestFS(os.Getuid(), os.Getgid())
+
 }
 
 // Split a filesystem path into elements.

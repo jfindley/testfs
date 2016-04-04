@@ -38,6 +38,7 @@ func (i *inode) Sys() interface{} {
 		Mode:     i.mode,
 		Xattrs:   i.xattrs,
 		Mtime:    i.mtime,
+		Size:     int64(len(i.data)),
 		Linkname: i.relName,
 	}
 }
