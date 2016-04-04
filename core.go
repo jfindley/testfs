@@ -39,6 +39,17 @@ type inode struct {
 	mu        *sync.Mutex
 }
 
+// Stat_t is the data type returned by the Sys() interface for a testfs file.
+type Stat_t struct {
+    Name string
+    Uid uint16
+    Gid uint16
+    Mode os.FileMode
+    Xattrs map[string]string
+    Mtime time.Time
+    Linkname string
+}
+
 // Create a new inode as a child of this one
 func (i *inode) new(name string, uid, gid uint16, mode os.FileMode) error {
 	i.mu.Lock()

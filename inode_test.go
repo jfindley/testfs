@@ -39,10 +39,6 @@ func TestInodeFileInfo(t *testing.T) {
 		t.Error("Bad size")
 	}
 
-	if fileInfo.Sys() != in {
-		t.Error("Bad sys interface")
-	}
-
 }
 
 func TestChmod(t *testing.T) {
@@ -282,12 +278,33 @@ func TestLstat(t *testing.T) {
 		t.Error("Bad name")
 	}
 
-	in, ok := fi.Sys().(*inode)
+	in, ok := fi.Sys().(*Stat_t)
 	if !ok {
 		t.Fatal("Bad type")
 	}
 
-	if in.rel.name != "test" {
-		t.Error("Bad rel name")
+	if in.Linkname != "/testlstat/test" {
+		t.Error("Bad rel name", in.Linkname)
 	}
+}
+
+
+func TestSys(t *testing.T)  {
+    f, err := fs.Create("/testSys")
+	if err != nil {
+		t.Error(err)
+	}
+    
+    fi, err := f.Stat()
+	if err != nil {
+		t.Error(err)
+	}
+	if _, ok := fi.Sys().(*Stat_t); !ok {
+        t.Fatal("Wrong type returned")
+    }
+    
+    if fi.Sys().(*Stat_t).Name != "testSys" {
+        t.Error("Wrong name")
+    }
+    
 }

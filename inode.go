@@ -31,7 +31,15 @@ func (i *inode) IsDir() bool {
 }
 
 func (i *inode) Sys() interface{} {
-	return i
+	return &Stat_t{
+		Name:     i.name,
+		Uid:      i.uid,
+		Gid:      i.gid,
+		Mode:     i.mode,
+		Xattrs:   i.xattrs,
+		Mtime:    i.mtime,
+		Linkname: i.relName,
+	}
 }
 
 func (i *inode) chmod(mode os.FileMode) error {
