@@ -125,7 +125,7 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 	if err != nil {
 		return nil, err
 	}
-
+    
 	if flag&os.O_CREATE == os.O_CREATE {
 
 		f, err := createFile(d, file, flag, perm)
@@ -144,6 +144,11 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 		}
 
 	}
+    
+    // Handle root dir
+    if file == "" {
+        file = d.name
+    }
 
 	f, err := openFile(d, file, flag)
 
