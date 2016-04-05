@@ -48,9 +48,21 @@ func openFile(dir *inode, name string, flag int) (*file, error) {
 
 	dir.mu.Lock()
 	defer dir.mu.Unlock()
-	f, err := dir.lookup([]string{name})
-	if err != nil {
-		return nil, err
+
+	var f *inode
+	var err error
+
+    // Handle / specially
+	if name == "/" {
+		if dir.name != "/" {
+			return nil, os.ErrInvalid
+		}
+		f = dir
+	} else {
+		f, err = dir.lookup([]string{name})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	switch {
@@ -119,13 +131,19 @@ func (t *TestFS) Open(name string) (File, error) {
 }
 
 func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error) {
+
+	// Handle root dir
+	if name == "/" {
+		return openFile(&t.dirTree, name, flag)
+	}
+
 	dir, file := path.Split(name)
 
 	d, err := t.find(dir)
 	if err != nil {
 		return nil, err
 	}
-    
+
 	if flag&os.O_CREATE == os.O_CREATE {
 
 		f, err := createFile(d, file, flag, perm)
@@ -144,11 +162,6 @@ func (t *TestFS) OpenFile(name string, flag int, perm os.FileMode) (File, error)
 		}
 
 	}
-    
-    // Handle root dir
-    if file == "" {
-        file = d.name
-    }
 
 	f, err := openFile(d, file, flag)
 

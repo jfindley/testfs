@@ -82,7 +82,7 @@ func TestOpen(t *testing.T) {
 
 func TestOpenFile(t *testing.T) {
     _, err := fs.OpenFile("/", os.O_RDONLY, 0)
-	if !os.IsNotExist(err) {
+	if err != nil {
 		t.Error("Bad error status")
 	}
     
