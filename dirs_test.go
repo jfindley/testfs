@@ -112,13 +112,31 @@ func TestGetwd(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+    
+    fs.Chdir("/")
+    dir, err = fs.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+	if dir != "/" {
+		t.Error("Bad WD", dir)
+	}
 
-	fs.Chdir("/testgetwd/test")
+	fs.Chdir("testgetwd")
 	dir, err = fs.Getwd()
 	if err != nil {
 		t.Error(err)
 	}
+	if dir != "/testgetwd" {
+		t.Error("Bad WD", dir)
+	}
+    
+    fs.Chdir("/testgetwd/test")
+    dir, err = fs.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
 	if dir != "/testgetwd/test" {
-		t.Error("Bad WD")
+		t.Error("Bad WD", dir)
 	}
 }

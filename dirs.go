@@ -95,11 +95,19 @@ func (t *TestFS) Chdir(dir string) error {
 
 	t.cwd = d
 
-	if dir[0] == '/' {
+	switch {
+
+	case dir[0] == '/':
 		t.cwdPath = dir
-	} else {
+
+	case t.cwdPath[len(t.cwdPath)-1] == '/':
+		t.cwdPath = t.cwdPath + dir
+
+	default:
 		t.cwdPath = t.cwdPath + "/" + dir
+
 	}
+
 	return nil
 }
 
